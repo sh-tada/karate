@@ -1,1 +1,14 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
 
+[project]
+name = "asymctv"
+version = "0.0.1"
+dependencies = [
+    "jax",
+    "jkepler",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=6.0.0"]
