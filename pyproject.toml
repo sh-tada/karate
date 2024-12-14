@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "asymctv"
+name = "atmoctv"
 version = "0.0.1"
 dependencies = [
     "jax",
