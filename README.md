@@ -1,3 +1,4 @@
-# karate: Knowing AsymmetRic Atmosphere of Transiting Exoplanets
+# karate
+**karate: Knowing AsymmetRic Atmosphere of Transiting Exoplanets**
 
-Convert chromatic transit variations (CTV) into four-directional spectra to explore atmospheric asymmetries in exoplanets.
+A tool for analyzing chromatic transit variations (CTV) to explore the atmospheric asymmetry of transiting exoplanets.
