@@ -111,12 +111,9 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
     Returns:
     array: True anomaly (f) in radians (vector output).
     """
-    rsky_over_rs = jnp.atleast_1d(rsky_over_rs)
-    f_init = jnp.atleast_1d(f_init)
-    a_over_rs = jnp.atleast_1d(a_over_rs)
-    ecc = jnp.atleast_1d(ecc)
-    omega = jnp.atleast_1d(omega)
-    cosi = jnp.atleast_1d(cosi)
+    rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi = expand_arrays(
+        rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi
+    )
 
     def projected_distance_equation(f, rsky_over_rs, a_over_rs, ecc, omega, cosi):
         # Calculate the 3D distance based on the true anomaly
@@ -148,6 +145,29 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
             f = newton_method(f)
         return f
 
+    # Dynamically apply vmap based on input dimensions
+    func = solve_for_f
+    input_ndim = rsky_over_rs.ndim
+    for _ in range(input_ndim):
+        func = jax.vmap(func)
     # Process vector inputs
-    f = jax.vmap(solve_for_f)(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi)
+    f = func(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi)
     return f
+
+
+@jit
+def expand_arrays(*inputs):
+    arrays = [jnp.asarray(inp) for inp in inputs]
+    # Determine the maximum number of dimensions among all inputs
+    max_ndim = max(arr.ndim for arr in arrays)
+    # If all inputs are scalars
+    if max_ndim == 0:
+        return arrays
+    # Determine the maximum shape for each dimension
+    max_shape = jnp.asarray(1)
+    for arr in arrays:
+        max_shape = max_shape * jnp.ones_like(arr)
+    expanded_arrays = []
+    for arr in arrays:
+        expanded_arrays.append(arr * max_shape)
+    return expanded_arrays

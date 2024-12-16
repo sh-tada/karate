@@ -1,16 +1,28 @@
 import jax.numpy as jnp
-from jkepler.kepler import kepler
+from jaxoplanet.core.kepler import kepler
 from jax import jit
 
 
 @jit
 def true_anomaly_to_eccentric_anomaly(f, ecc):
-    return 2.0 * jnp.arctan(jnp.sqrt((1.0 - ecc) / (1.0 + ecc)) * jnp.tan(f / 2.0))
+    # make f from -pi to pi
+    n = (f + jnp.pi) // (2 * jnp.pi)
+    f = (f + jnp.pi) % (2 * jnp.pi) - jnp.pi
+    return (
+        2.0 * jnp.arctan(jnp.sqrt((1.0 - ecc) / (1.0 + ecc)) * jnp.tan(f / 2.0))
+        + 2 * n * jnp.pi
+    )
 
 
 @jit
 def eccentric_anomaly_to_true_anomaly(u, ecc):
-    return 2.0 * jnp.arctan(jnp.sqrt((1.0 + ecc) / (1.0 - ecc)) * jnp.tan(u / 2.0))
+    # make u from -pi to pi
+    n = (u + jnp.pi) // (2 * jnp.pi)
+    u = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
+    return (
+        2.0 * jnp.arctan(jnp.sqrt((1.0 + ecc) / (1.0 - ecc)) * jnp.tan(u / 2.0))
+        + 2 * n * jnp.pi
+    )
 
 
 @jit
@@ -61,15 +73,15 @@ def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     y : float or array-like
         Y-coordinate(s) of the planet's position (in units of stellar radii).
     """
-    # Ensure compatibility between scalars and arrays
-    if isinstance(a_over_rs, jnp.ndarray) and a_over_rs.ndim == 1:
-        a_over_rs = a_over_rs[:, None]
-    if isinstance(period, jnp.ndarray) and period.ndim == 1:
-        period = period[:, None]
-    if isinstance(cosi, jnp.ndarray) and cosi.ndim == 1:
-        cosi = cosi[:, None]
-    if isinstance(t0, jnp.ndarray) and t0.ndim == 1:
-        t0 = t0[:, None]
+    inputs = [period, a_over_rs, cosi, t0]
+    # Process each input: add a new axis if it is an array
+    processed_inputs = []
+    for inp in inputs:
+        arr = jnp.asarray(inp)  # Convert to jax.numpy array
+        if arr.ndim > 0:  # Check if it is an array (not a scalar)
+            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
+        processed_inputs.append(arr)
+    period, a_over_rs, cosi, t0 = processed_inputs
 
     x = a_over_rs * jnp.sin(2.0 * jnp.pi * (t - t0) / period)
     y = -a_over_rs * jnp.cos(2.0 * jnp.pi * (t - t0) / period) * cosi
@@ -87,41 +99,43 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
 
     Parameters
     ----------
-    t : float or array-like
+    t : float or 1d array-like
         Time(s) at which to calculate the planet's coordinates.
-    period : float
+    period : float or array-like
         Orbital period of the planet.
-    a_over_rs : float
+    a_over_rs : float or array-like
         Semi-major axis divided by stellar radius.
-    cosi : float
+    cosi : float or array-like
         Cosine of the orbital inclination angle.
-    t0 : float
+    t0 : float or array-like
         Time of conjunction (when the planet passes closest to the star's center).
 
     Returns
     -------
-    x : float or array-like
+    x : float or array-like (*shape(params), len(t))
         X-coordinate(s) of the planet's position (in units of stellar radii).
-    y : float or array-like
+    y : float or array-like (*shape(params), len(t))
         Y-coordinate(s) of the planet's position (in units of stellar radii).
     """
-    if isinstance(a_over_rs, jnp.ndarray) and a_over_rs.ndim == 1:
-        a_over_rs = a_over_rs[:, None]
-    if isinstance(period, jnp.ndarray) and period.ndim == 1:
-        period = period[:, None]
-    if isinstance(ecc, jnp.ndarray) and ecc.ndim == 1:
-        ecc = ecc[:, None]
-    if isinstance(omega, jnp.ndarray) and omega.ndim == 1:
-        omega = omega[:, None]
-    if isinstance(cosi, jnp.ndarray) and cosi.ndim == 1:
-        cosi = cosi[:, None]
-    if isinstance(t0, jnp.ndarray) and t0.ndim == 1:
-        t0 = t0[:, None]
+    inputs = [period, a_over_rs, ecc, omega, cosi, t0]
+    # Process each input: add a new axis if it is an array
+    processed_inputs = []
+    for inp in inputs:
+        arr = jnp.asarray(inp)  # Convert to jax.numpy array
+        if arr.ndim > 0:  # Check if it is an array (not a scalar)
+            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
+        processed_inputs.append(arr)
+    period, a_over_rs, ecc, omega, cosi, t0 = processed_inputs
 
     tperi = t0_to_tperi(t0, period, ecc, omega)
-    u = kepler.get_ta(t, period, ecc, tperi)
-    r = a_over_rs * (1.0 - ecc * jnp.sin(u))
-    f = eccentric_anomaly_to_true_anomaly(u, ecc)
+    sinf, cosf = get_ta(t, period, ecc, tperi)
+    r = a_over_rs * (1.0 - ecc**2) / (1 + ecc * cosf)
+    f = jnp.arctan2(sinf, cosf)
     c_X = -r * jnp.cos(omega + f)
     c_Y = -r * jnp.sin(omega + f) * cosi
     return c_X, c_Y
+
+
+def get_ta(t, period, ecc, tperi):
+    M = 2 * jnp.pi * (t - tperi) / period
+    return kepler(M, ecc)

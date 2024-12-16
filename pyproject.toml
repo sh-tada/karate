@@ -7,8 +7,11 @@ name = "atmoctv"
 version = "0.0.1"
 dependencies = [
     "jax",
-    "jkepler",
+    "jaxoplanet",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=6.0.0"]
+dev = [
+    "pytest>=6.0.0",
+    "matplotlib",
+]

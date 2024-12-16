@@ -22,9 +22,9 @@ def test_calc_contact_times_circular():
     assert jnp.allclose(t2 - t1, t4 - t3, atol=1e-8)
 
     rp_over_rs = jnp.array([0.1, 0.11])
-    period = jnp.array([10, 11])
-    a_over_rs = jnp.array([10, 11])
-    cosi = jnp.array([0.01, 0.011])
+    period = 10
+    a_over_rs = jnp.array([[10, 11], [12, 13], [14, 15]])
+    cosi = jnp.array([[0.01], [0.011], [0.012]])
     t0 = jnp.array([0.0, 0.1])
     t1, t2, t3, t4 = calc_contact_times_circular(
         rp_over_rs, period, a_over_rs, cosi, t0
@@ -69,8 +69,6 @@ def test_calc_contact_times():
     t1, t2, t3, t4 = calc_contact_times(
         rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
     )
-    print(t1_c, t2_c, t3_c, t4_c)
-    print(t1, t2, t3, t4)
 
     assert jnp.allclose(t1_c, t1, atol=1e-8)
     assert jnp.allclose(t2_c, t2, atol=1e-8)
@@ -78,11 +76,11 @@ def test_calc_contact_times():
     assert jnp.allclose(t4_c, t4, atol=1e-8)
 
     rp_over_rs = jnp.array([0.1, 0.11])
-    period = jnp.array([10, 11])
-    a_over_rs = jnp.array([10, 11])
+    period = 10
+    a_over_rs = jnp.array([[10, 11], [12, 13], [14, 15]])
     ecc = jnp.array([0, 0])
     omega = jnp.array([0, 0])
-    cosi = jnp.array([0.01, 0.011])
+    cosi = jnp.array([[0.01], [0.011], [0.012]])
     t0 = jnp.array([0.0, 0.1])
     t1_c, t2_c, t3_c, t4_c = calc_contact_times_circular(
         rp_over_rs, period, a_over_rs, cosi, t0
@@ -90,8 +88,6 @@ def test_calc_contact_times():
     t1, t2, t3, t4 = calc_contact_times(
         rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
     )
-    print(t1_c, t2_c, t3_c, t4_c)
-    print(t1, t2, t3, t4)
 
     assert jnp.allclose(t1_c, t1, atol=1e-8)
     assert jnp.allclose(t2_c, t2, atol=1e-8)

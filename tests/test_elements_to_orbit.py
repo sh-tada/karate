@@ -24,7 +24,13 @@ def test_true_anomaly_to_eccentric_anomaly():
     f = jnp.pi / 3 + jnp.linspace(-jnp.pi, jnp.pi, 10)
     ecc = 0.1 + jnp.linspace(-0.1, 0.1, 10)
     result = true_anomaly_to_eccentric_anomaly(f, ecc)
-    expected = 2 * jnp.arctan(jnp.sqrt((1 - ecc) / (1 + ecc)) * jnp.tan(f / 2))
+
+    n = (f + jnp.pi) // (2 * jnp.pi)
+    f = (f + jnp.pi) % (2 * jnp.pi) - jnp.pi
+    expected = (
+        2 * jnp.arctan(jnp.sqrt((1 - ecc) / (1 + ecc)) * jnp.tan(f / 2))
+        + 2 * n * jnp.pi
+    )
     assert jnp.allclose(result, expected, atol=1e-8)
 
 
@@ -37,12 +43,17 @@ def test_eccentric_anomaly_to_true_anomaly():
     u = jnp.pi / 3 + jnp.linspace(-jnp.pi, jnp.pi, 10)
     ecc = 0.1 + jnp.linspace(-0.1, 0.1, 10)
     result = eccentric_anomaly_to_true_anomaly(u, ecc)
-    expected = 2 * jnp.arctan(jnp.sqrt((1 + ecc) / (1 - ecc)) * jnp.tan(u / 2))
+
+    n = (u + jnp.pi) // (2 * jnp.pi)
+    u_ = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
+    expected = (
+        2 * jnp.arctan(jnp.sqrt((1 + ecc) / (1 - ecc)) * jnp.tan(u_ / 2))
+        + 2 * n * jnp.pi
+    )
     assert jnp.allclose(result, expected, atol=1e-8)
 
     result = true_anomaly_to_eccentric_anomaly(result, ecc)
-    expected = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
-    assert jnp.allclose(result, expected, atol=1e-8)
+    assert jnp.allclose(result, u, atol=1e-8)
 
 
 def test_eccentric_anomaly_to_t_from_tperi():
