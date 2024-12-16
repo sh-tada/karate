@@ -1,7 +1,7 @@
 import pytest
 import jax.numpy as jnp
 from jax import config
-from atmoctv.calc_contact_times import (
+from karate.calc_contact_times import (
     calc_contact_times,
     calc_contact_times_circular,
 )

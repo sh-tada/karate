@@ -1,6 +1,6 @@
-from atmoctv.elements_to_orbit import true_anomaly_to_eccentric_anomaly
-from atmoctv.elements_to_orbit import t0_to_tperi
-from atmoctv.elements_to_orbit import eccentric_anomaly_to_t_from_tperi
+from karate.elements_to_orbit import true_anomaly_to_eccentric_anomaly
+from karate.elements_to_orbit import t0_to_tperi
+from karate.elements_to_orbit import eccentric_anomaly_to_t_from_tperi
 import jax.numpy as jnp
 import jax
 from jax import jit

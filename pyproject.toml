@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "atmoctv"
+name = "karate"
 version = "0.0.1"
 dependencies = [
     "jax",

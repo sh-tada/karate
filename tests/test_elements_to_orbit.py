@@ -1,7 +1,7 @@
 import pytest
 import jax.numpy as jnp
 from jax import config
-from atmoctv.elements_to_orbit import (
+from karate.elements_to_orbit import (
     true_anomaly_to_eccentric_anomaly,
     eccentric_anomaly_to_true_anomaly,
     eccentric_anomaly_to_t_from_tperi,

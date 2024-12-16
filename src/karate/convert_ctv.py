@@ -1,6 +1,6 @@
-from atmoctv.elements_to_orbit import orbital_elements_to_coordinates
-from atmoctv.elements_to_orbit import orbital_elements_to_coordinates_circular
-from atmoctv.calc_contact_times import calc_true_anomaly_rsky
+from karate.elements_to_orbit import orbital_elements_to_coordinates
+from karate.elements_to_orbit import orbital_elements_to_coordinates_circular
+from karate.calc_contact_times import calc_true_anomaly_rsky
 import jax.numpy as jnp
 from jax import jit
 

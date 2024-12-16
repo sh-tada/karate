@@ -1,5 +1,5 @@
-from atmoctv.elements_to_orbit import true_anomaly_to_eccentric_anomaly
-from atmoctv.calc_contact_times import calc_true_anomaly_rsky
+from karate.elements_to_orbit import true_anomaly_to_eccentric_anomaly
+from karate.calc_contact_times import calc_true_anomaly_rsky
 import jax.numpy as jnp
 from jax import jit
 
