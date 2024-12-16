@@ -1,6 +1,6 @@
 import jax.numpy as jnp
-from jaxoplanet.core.kepler import kepler
 from jax import jit
+from jaxoplanet.core.kepler import kepler
 
 
 @jit
