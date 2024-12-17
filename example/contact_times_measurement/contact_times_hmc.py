@@ -126,10 +126,15 @@ def lightcurve_fit_plot(
     filename="light_curve_fit.png",
 ):
     """Make figures of lightcurve data and MCMC fit."""
-    plt.figure(figsize=(12, 18))
+    plt.figure(figsize=(12, 24))
     for i in range(len(flux)):
         plt.plot(
-            time, flux[i] - 0.01 * i, marker=".", linestyle="None", color="dodgerblue"
+            time,
+            flux[i] - 0.01 * i,
+            marker=".",
+            markersize=3,
+            linestyle="None",
+            # color="dodgerblue"
         )
         plt.plot(
             time,
@@ -141,9 +146,9 @@ def lightcurve_fit_plot(
         )
         plt.fill_between(
             time,
-            pred_hpdi[0, i],
-            pred_hpdi[1, i],
-            alpha=0.4,
+            pred_hpdi[0, i] - 0.01 * i,
+            pred_hpdi[1, i] - 0.01 * i,
+            alpha=0.2,
             interpolate=True,
             color="black",
             label=f"{int(hpdi_range*100)}% area",
@@ -152,23 +157,25 @@ def lightcurve_fit_plot(
     plt.title(title)
     plt.xlabel("Time")
     plt.ylabel("Relative Flux")
+    plt.tight_layout()
     plt.savefig(dir_output + filename)
     plt.close()
 
-    plt.figure(figsize=(12, 18))
+    plt.figure(figsize=(12, 24))
     for i in range(len(flux)):
         plt.plot(
             time,
             flux[i] - pred_median[i] - 0.01 * i,
             marker=".",
+            markersize=3,
             linestyle="None",
-            color="dodgerblue",
+            # color="dodgerblue",
         )
         plt.fill_between(
             time,
             pred_hpdi[0, i] - pred_median[i] - 0.01 * i,
             pred_hpdi[1, i] - pred_median[i] - 0.01 * i,
-            alpha=0.4,
+            alpha=0.2,
             interpolate=True,
             color="black",
             label=f"{int(hpdi_range*100)}% area",
@@ -177,6 +184,7 @@ def lightcurve_fit_plot(
     plt.title(title)
     plt.xlabel("Time")
     plt.ylabel("Relative Flux")
+    plt.tight_layout()
     plt.savefig(dir_output + filename.rsplit(".", 1)[0] + "_residual.png")
     plt.close()
 
@@ -201,8 +209,8 @@ def prediction_plot(
         x,
         input,
         color="dodgerblue",
-        # fmt=".",
-        # markersize=2,
+        marker="o",
+        s=80,
         # linestyle="None",
         # color="0.0",
         # ecolor="0.3",
@@ -215,7 +223,8 @@ def prediction_plot(
         prediction_median,
         yerr=prediction_hpdi_68,
         color="black",
-        # linestyle="None",
+        marker="o",
+        linestyle="None",
         # lw=3,
         # zorder=5,
         # alpha=0.7,
@@ -223,13 +232,15 @@ def prediction_plot(
     )
     ax1.set_title(title)
     ax1.set_ylabel(ylabel)
+    ax1.legend()
 
     ax2.errorbar(
         x,
         prediction_median - input,
         yerr=prediction_hpdi_68,
         color="black",
-        # linestyle="None",
+        marker="o",
+        linestyle="None",
         # lw=3,
         # zorder=5,
         # alpha=0.7,
@@ -237,6 +248,7 @@ def prediction_plot(
     )
     ax2.set_ylabel("Residual")
     ax2.set_xlabel(xlabel)
+    ax2.legend()
 
     plt.setp(ax1.get_xticklabels(), visible=False)
     plt.tight_layout()
@@ -261,7 +273,7 @@ if __name__ == "__main__":
     rng_key = random.key(0)
     rng_key, rng_key_ = random.split(rng_key)
 
-    wavelength = jnp.linspace(3.0, 5.0, 3)
+    wavelength = jnp.linspace(3.0, 5.0, 21)
     time = jnp.linspace(-150, 150, 301) * 65
     rp_over_rs = 0.150 + 0.005 * jnp.sin(wavelength * jnp.pi)
     t0 = 0
@@ -288,23 +300,23 @@ if __name__ == "__main__":
                 flux[i, j] - 0.01 * j,
                 marker=".",
                 linestyle="None",
-                label=r"$R_{p}/R_{s}$" + f" = {rp_over_rs[j]:.3f}",
+                label="$R_{p}/R_{s}$" + f" = {rp_over_rs[j]:.3f}",
             )
         # plt.legend()
         plt.title(
-            rf"Light Curve (ecos$\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
-            + rf"esin$\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})"
+            f"Light Curve ($e\cos\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
+            + f"$e\sin\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})"
         )
         plt.xlabel("Time")
         plt.ylabel("Relative Flux")
         plt.savefig(
             f"lightcurve_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
-            + rf"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png"
+            + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png"
         )
         plt.close()
 
-    num_warmup = 40
-    num_samples = 30
+    num_warmup = 2000
+    num_samples = 2000
 
     rng_key, rng_key_ = random.split(rng_key)
     kernel = NUTS(
@@ -359,11 +371,11 @@ if __name__ == "__main__":
             pred_median,
             pred_hpdi,
             hpdi_range=0.90,
-            title=rf"Light Curve (ecos$\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
-            + rf"esin$\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})",
+            title=f"Light Curve ($e\cos\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
+            + f"$e\sin\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})",
             dir_output=dir_output,
             filename=f"fit_lightcurve_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
-            + rf"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png",
+            + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png",
         )
 
     t1, t2, t3, t4 = calc_contact_times(
@@ -407,32 +419,43 @@ if __name__ == "__main__":
             for median_i, hpdi_i in zip(pred_median, pred_hpdi)
         ]
     )
-    xlabel = r"Wavelength ($\mathrm{\mu m}$)"
+    xlabel = "Wavelength ($\mathrm{\mu m}$)"
     ylabel = [
-        r"$\mathrm{R_{p}/{R_{s}}}",
-        "u1",
-        "u2",
-        r"$\mathrm{t_{I}}",
-        r"$\mathrm{t_{II}}",
-        r"$\mathrm{t_{III}}",
-        r"$\mathrm{t_{IV}}",
+        "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
+        "$u_1$",
+        "$u_2$",
+        "$t_{\mathrm{I}}$",
+        "$t_{\mathrm{II}}$",
+        "$t_{\mathrm{III}}$",
+        "$t_{\mathrm{IV}}$",
     ]
 
     for i in range(len(ecc)):
         title_e = (
-            rf"(ecos$\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
-            + rf"esin$\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})"
+            rf" ($e\cos\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
+            + rf"$e\sin\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})"
         )
         filename_e = (
             f"_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
             + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png"
         )
-        title = [ylabel_i + title_e for ylabel_i in ylabel]
+        title = [
+            ylabel_i + title_e
+            for ylabel_i in [
+                "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
+                "$u_1$",
+                "$u_2$",
+                "$t_{\mathrm{I}}$",
+                "$t_{\mathrm{II}}$",
+                "$t_{\mathrm{III}}$",
+                "$t_{\mathrm{IV}}$",
+            ]
+        ]
         filename = [
             param_i + filename_e
             for param_i in ["rp", "u1", "u2", "t1", "t2", "t3", "t4"]
         ]
-        for j, title in enumerate(title):
+        for j, title_j in enumerate(title):
             prediction_plot(
                 wavelength,
                 input[j][i],
@@ -440,7 +463,7 @@ if __name__ == "__main__":
                 pred_yerr[j][:, i],
                 xlabel,
                 ylabel[j],
-                title[j],
+                title_j,
                 dir_output,
                 filename[j],
             )
