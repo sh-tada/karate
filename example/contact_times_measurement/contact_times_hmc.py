@@ -23,7 +23,7 @@ config.update("jax_debug_nans", True)
 
 def model_ecc0(flux_obs, time, num_elements):
     shape_params = flux_obs.shape[:-1]
-    with numpyro.plate("all_params", num_elements):
+    with numpyro.plate("all_params", num_elements, dim=-2):
         period = period_day * 24 * 60 * 60
         t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
         Ttot = numpyro.sample("Ttot_1d", dist.Uniform(5000, 15000))
@@ -73,13 +73,20 @@ def model_ecc0(flux_obs, time, num_elements):
         )
 
         flux = transit_compute_flux_ecc0(
-            time, rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
+            time,
+            rp_over_rs[:, 0],
+            t0[:, 0],
+            period,
+            a_over_rs[:, 0],
+            cosi[:, 0],
+            u1[:, 0],
+            u2[:, 0],
         )
         numpyro.sample(
             "light_curve",
             dist.Normal(
-                flux * jnp.expand_dims(baseline, axis=-1),
-                jnp.expand_dims(jitter, axis=-1) * jnp.ones_like(flux),
+                flux * baseline,
+                jitter * jnp.ones_like(flux),
             ),
             obs=flux_obs.reshape((num_elements, len(time))),
         )
