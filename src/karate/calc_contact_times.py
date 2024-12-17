@@ -8,6 +8,9 @@ from jax import jit
 
 @jit
 def calc_contact_times_circular(rp_over_rs, period, a_over_rs, cosi, t0):
+    """ """
+    inputs = [rp_over_rs, period, a_over_rs, cosi, t0]
+    rp_over_rs, period, a_over_rs, cosi, t0 = [jnp.asarray(inp) for inp in inputs]
     Ttot = (
         period
         / jnp.pi
@@ -35,6 +38,11 @@ def calc_contact_times_circular(rp_over_rs, period, a_over_rs, cosi, t0):
 
 @jit
 def calc_contact_times(rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0):
+    """ """
+    inputs = [rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0]
+    rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0 = [
+        jnp.asarray(inp) for inp in inputs
+    ]
     f_init_t1 = (
         jnp.pi / 2.0
         - omega
@@ -157,6 +165,7 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
 
 @jit
 def expand_arrays(*inputs):
+    """ """
     arrays = [jnp.asarray(inp) for inp in inputs]
     # Determine the maximum number of dimensions among all inputs
     max_ndim = max(arr.ndim for arr in arrays)

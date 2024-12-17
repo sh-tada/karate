@@ -142,6 +142,7 @@ def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
 def contact_times_to_delta_c_ingress(
     k_lambda, t1_lambda, t2_lambda, period, a_over_rs, ecc, omega, cosi, t0, rs_alpha=1
 ):
+    """ """
     cb_X_t1, cb_Y_t1 = orbital_elements_to_coordinates(
         t1_lambda, period, a_over_rs, ecc, omega, cosi, t0
     )
@@ -158,6 +159,7 @@ def contact_times_to_delta_c_ingress(
 def contact_times_to_delta_c_egress(
     k_lambda, t3_lambda, t4_lambda, period, a_over_rs, ecc, omega, cosi, t0, rs_alpha=1
 ):
+    """ """
     cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates(
         t3_lambda, period, a_over_rs, ecc, omega, cosi, t0
     )
@@ -172,6 +174,7 @@ def contact_times_to_delta_c_egress(
 
 @jit
 def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, cosi):
+    """ """
     f_init = (
         jnp.pi / 2.0
         - omega
@@ -190,6 +193,7 @@ def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, co
 
 @jit
 def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi):
+    """ """
     f_init = (
         jnp.pi / 2.0
         - omega
@@ -210,6 +214,7 @@ def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi)
 def contact_times_to_delta_c_ingress_circular(
     k_lambda, t1_lambda, t2_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
+    """ """
     cb_X_t1, cb_Y_t1 = orbital_elements_to_coordinates_circular(
         t1_lambda, period, a_over_rs, cosi, t0
     )
@@ -226,6 +231,7 @@ def contact_times_to_delta_c_ingress_circular(
 def contact_times_to_delta_c_egress_circular(
     k_lambda, t3_lambda, t4_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
+    """ """
     cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates(
         t3_lambda, period, a_over_rs, cosi, t0
     )
@@ -240,6 +246,7 @@ def contact_times_to_delta_c_egress_circular(
 
 @jit
 def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi):
+    """ """
     f_ib = jnp.pi / 2.0 - jnp.arcsin(
         jnp.sqrt((1.0 - (a_over_rs * cosi) ** 2)) / jnp.sqrt(1.0 - cosi**2) / a_over_rs
     )
@@ -252,6 +259,7 @@ def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi)
 
 @jit
 def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
+    """ """
     f_eb = jnp.pi / 2 + jnp.arcsin(
         jnp.sqrt((1.0 - (a_over_rs * cosi) ** 2)) / jnp.sqrt(1.0 - cosi**2) / a_over_rs
     )
@@ -264,6 +272,7 @@ def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
 
 @jit
 def dcx_to_rp_spectra(k, dc_x, rs_alpha=1):
+    """ """
     rp_jnp = rs_alpha * k + dc_x
     rp_xn = rs_alpha * k - dc_x
     return rp_jnp, rp_xn

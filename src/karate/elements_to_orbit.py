@@ -5,33 +5,39 @@ from jaxoplanet.core.kepler import kepler
 
 @jit
 def true_anomaly_to_eccentric_anomaly(f, ecc):
+    """ """
     # make f from -pi to pi
-    n = (f + jnp.pi) // (2 * jnp.pi)
-    f = (f + jnp.pi) % (2 * jnp.pi) - jnp.pi
-    return (
-        2.0 * jnp.arctan(jnp.sqrt((1.0 - ecc) / (1.0 + ecc)) * jnp.tan(f / 2.0))
-        + 2 * n * jnp.pi
-    )
+    n = jnp.floor((f + jnp.pi) / (2 * jnp.pi))
+    f_norm = (f + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+    # eccentric anomaly
+    u = 2.0 * jnp.arctan(jnp.sqrt((1.0 - ecc) / (1.0 + ecc)) * jnp.tan(f_norm / 2.0))
+    u = u + 2.0 * n * jnp.pi
+    return jnp.where((f % jnp.pi) == 0, f, u)
 
 
 @jit
 def eccentric_anomaly_to_true_anomaly(u, ecc):
+    """ """
     # make u from -pi to pi
-    n = (u + jnp.pi) // (2 * jnp.pi)
-    u = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
-    return (
-        2.0 * jnp.arctan(jnp.sqrt((1.0 + ecc) / (1.0 - ecc)) * jnp.tan(u / 2.0))
-        + 2 * n * jnp.pi
-    )
+    n = jnp.floor((u + jnp.pi) / (2 * jnp.pi))
+    u_norm = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
+
+    # true anomaly
+    f = 2.0 * jnp.arctan(jnp.sqrt((1.0 + ecc) / (1.0 - ecc)) * jnp.tan(u_norm / 2.0))
+    f = f + 2.0 * n * jnp.pi
+    return jnp.where((u % jnp.pi) == 0, u, f)
 
 
 @jit
 def eccentric_anomaly_to_t_from_tperi(u, ecc, period):
+    """ """
     return period / (2.0 * jnp.pi) * (u - ecc * jnp.sin(u))
 
 
 @jit
 def tperi_to_t0(t_periastron, period, ecc, omega):
+    """ """
     u_t0 = true_anomaly_to_eccentric_anomaly(jnp.pi / 2.0 - omega, ecc)
     t0_from_tperi = eccentric_anomaly_to_t_from_tperi(u_t0, ecc, period)
     return t0_from_tperi + t_periastron
@@ -39,6 +45,7 @@ def tperi_to_t0(t_periastron, period, ecc, omega):
 
 @jit
 def t0_to_tperi(t0, period, ecc, omega):
+    """ """
     u_t0 = true_anomaly_to_eccentric_anomaly(jnp.pi / 2.0 - omega, ecc)
     t0_from_tperi = eccentric_anomaly_to_t_from_tperi(u_t0, ecc, period)
     return t0 - t0_from_tperi
@@ -137,5 +144,6 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
 
 
 def get_ta(t, period, ecc, tperi):
+    """ """
     M = 2 * jnp.pi * (t - tperi) / period
     return kepler(M, ecc)
