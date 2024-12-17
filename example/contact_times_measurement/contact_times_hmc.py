@@ -6,9 +6,9 @@ import os
 import sys
 import matplotlib.pyplot as plt
 
-import jax.numpy as jnp
 from jax import random
 from jax import config
+import jax.numpy as jnp
 
 import numpyro
 from numpyro import distributions as dist
@@ -21,62 +21,77 @@ config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
 
-def model_ecc0(flux_obs, time, shape_params):
-    period = period_day * 24 * 60 * 60
-    t0 = numpyro.sample("t0", dist.Uniform(-5000, 5000).expand(shape_params))
-    Ttot = numpyro.sample("Ttot", dist.Uniform(5000, 15000).expand(shape_params))
-    Tfull = numpyro.sample("Tfull", dist.Uniform(jnp.ones_like(Ttot) * 1000, Ttot))
+def model_ecc0(flux_obs, time, num_elements):
+    shape_params = flux_obs.shape[:-1]
+    with numpyro.plate("all_params", num_elements):
+        period = period_day * 24 * 60 * 60
+        t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
+        Ttot = numpyro.sample("Ttot_1d", dist.Uniform(5000, 15000))
+        Tfull = numpyro.sample(
+            "Tfull_1d", dist.Uniform(jnp.ones_like(Ttot) * 1000, Ttot)
+        )
 
-    theta_tot = 2 * jnp.pi * Ttot / period
-    theta_full = 2 * jnp.pi * Tfull / period
-    depth_max = (
-        (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
-        / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
-    ) ** 2
-    depth = numpyro.sample("depth", dist.Uniform(jnp.zeros_like(depth_max), depth_max))
+        theta_tot = 2 * jnp.pi * Ttot / period
+        theta_full = 2 * jnp.pi * Tfull / period
+        depth_max = (
+            (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
+            / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
+        ) ** 2
+        depth = numpyro.sample(
+            "depth_1d", dist.Uniform(jnp.zeros_like(depth_max), depth_max)
+        )
 
-    u1 = numpyro.sample("u1", dist.Uniform(-3, 3).expand(shape_params))
-    u2 = numpyro.sample("u2", dist.Uniform(-3, 3).expand(shape_params))
-    baseline = numpyro.sample("baseline", dist.Uniform(0.99, 1.01).expand(shape_params))
-    jitter = numpyro.sample("jitter", dist.Uniform(0, 0.01).expand(shape_params))
+        u1 = numpyro.sample("u1_1d", dist.Uniform(-3, 3))
+        u2 = numpyro.sample("u2_1d", dist.Uniform(-3, 3))
+        baseline = numpyro.sample("baseline_1d", dist.Uniform(0.99, 1.01))
+        jitter = numpyro.sample("jitter_1d", dist.Uniform(0, 0.01))
 
-    rp_over_rs = numpyro.deterministic("rp_over_rs", jnp.sqrt(depth))
-    a_over_rs = numpyro.deterministic(
-        "a_over_rs",
-        jnp.sqrt(
-            (
-                -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
-                + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
-            )
-            / jnp.sin((theta_tot + theta_full) / 2)
-            / jnp.sin((theta_tot - theta_full) / 2)
-        ),
-    )
-    cosi = numpyro.deterministic(
-        "cosi",
-        jnp.sqrt(
-            (
-                (1 - jnp.sqrt(depth)) ** 2 * jnp.sin(theta_tot / 2) ** 2
-                - (1 + jnp.sqrt(depth)) ** 2 * jnp.sin(theta_full / 2) ** 2
-            )
-            / (
-                -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
-                + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
-            )
-        ),
-    )
+        rp_over_rs = numpyro.deterministic("rp_over_rs", jnp.sqrt(depth))
+        a_over_rs = numpyro.deterministic(
+            "a_over_rs",
+            jnp.sqrt(
+                (
+                    -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
+                    + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
+                )
+                / jnp.sin((theta_tot + theta_full) / 2)
+                / jnp.sin((theta_tot - theta_full) / 2)
+            ),
+        )
+        cosi = numpyro.deterministic(
+            "cosi",
+            jnp.sqrt(
+                (
+                    (1 - jnp.sqrt(depth)) ** 2 * jnp.sin(theta_tot / 2) ** 2
+                    - (1 + jnp.sqrt(depth)) ** 2 * jnp.sin(theta_full / 2) ** 2
+                )
+                / (
+                    -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
+                    + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
+                )
+            ),
+        )
 
-    flux = transit_compute_flux_ecc0(
-        time, rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
-    )
-    numpyro.sample(
-        "light_curve",
-        dist.Normal(
-            flux * jnp.expand_dims(baseline, axis=-1),
-            jnp.expand_dims(jitter, axis=-1) * jnp.ones_like(flux),
-        ),
-        obs=flux_obs,
-    )
+        flux = transit_compute_flux_ecc0(
+            time, rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
+        )
+        numpyro.sample(
+            "light_curve",
+            dist.Normal(
+                flux * jnp.expand_dims(baseline, axis=-1),
+                jnp.expand_dims(jitter, axis=-1) * jnp.ones_like(flux),
+            ),
+            obs=flux_obs.reshape((num_elements, len(time))),
+        )
+
+    t0 = numpyro.deterministic("t0", t0.reshape(shape_params))
+    Ttot = numpyro.deterministic("Ttot", Ttot.reshape(shape_params))
+    Tfull = numpyro.deterministic("Tfull", Tfull.reshape(shape_params))
+    depth = numpyro.deterministic("depth", depth.reshape(shape_params))
+    u1 = numpyro.deterministic("u1", u1.reshape(shape_params))
+    u2 = numpyro.deterministic("u2", u2.reshape(shape_params))
+    baseline = numpyro.deterministic("baseline", baseline.reshape(shape_params))
+    jitter = numpyro.deterministic("jitter", jitter.reshape(shape_params))
 
 
 def model(flux_obs, time, shape_params):
@@ -332,7 +347,7 @@ if __name__ == "__main__":
         rng_key_,
         flux_obs=flux,
         time=time,
-        shape_params=flux.shape[:-1],
+        num_elements=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
     )
 
     mcmc.print_summary()
@@ -358,7 +373,7 @@ if __name__ == "__main__":
         rng_key_,
         flux_obs=None,
         time=time,
-        shape_params=flux.shape[:-1],
+        num_elements=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
     )
     jnp.savez(dir_output + "predictions_ecc0", **predictions)
 
