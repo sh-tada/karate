@@ -354,8 +354,8 @@ if __name__ == "__main__":
 
     rng_key = random.key(0)
     rng_key, rng_key_ = random.split(rng_key)
-    num_warmup = 100
-    num_samples = 100
+    num_warmup = 1000
+    num_samples = 1000
 
     wavelength = jnp.linspace(3.0, 5.0, 21)
     time = jnp.linspace(-150, 150, 301) * 65
