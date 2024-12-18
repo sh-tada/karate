@@ -1,4 +1,5 @@
 from wasp39b_params import period_day
+from contact_times_hmc_plot import lightcurve_fit_plot, prediction_plot
 from calc_light_curve import transit_compute_flux, transit_compute_flux_ecc0
 from karate.calc_contact_times import calc_contact_times
 
@@ -12,23 +13,116 @@ import jax.numpy as jnp
 
 import numpyro
 from numpyro import distributions as dist
-from numpyro.infer import Predictive
-from numpyro.infer import MCMC, NUTS
+from numpyro.infer import Predictive, SVI, Trace_ELBO
+from numpyro.infer import MCMC, NUTS, init_to_value
 from numpyro.diagnostics import hpdi
+from numpyro.distributions import constraints
+
 
 # config.update("jax_platform_name", "cpu")
 config.update("jax_enable_x64", True)
 config.update("jax_debug_nans", True)
 
 
-def model_ecc0(flux_obs, time, num_elements):
-    shape_params = flux_obs.shape[:-1]
-    with numpyro.plate("all_params", num_elements, dim=-2):
+def model_ecc0(flux_obs, time, num_lightcurve):
+    with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
         period = period_day * 24 * 60 * 60
-        t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
-        Ttot = numpyro.sample("Ttot_1d", dist.Uniform(5000, 15000))
+        t0 = numpyro.sample("t0", dist.Uniform(-5000, 5000))
+        Ttot = numpyro.sample("Ttot", dist.Uniform(5000, 15000))
+        Tfull = numpyro.sample("Tfull", dist.Uniform(1000, Ttot))
+
+        theta_tot = 2 * jnp.pi * Ttot / period
+        theta_full = 2 * jnp.pi * Tfull / period
+        depth_max = (
+            (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
+            / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
+        ) ** 2
+        depth = numpyro.sample("depth", dist.Uniform(0, depth_max))
+
+        u1 = numpyro.sample("u1", dist.Uniform(-3, 3))
+        u2 = numpyro.sample("u2", dist.Uniform(-3, 3))
+        baseline = numpyro.sample("baseline", dist.Uniform(0.99, 1.01))
+        jitter = numpyro.sample("jitter", dist.Uniform(0, 0.01))
+
+    rp_over_rs = numpyro.deterministic("rp_over_rs", jnp.sqrt(depth))
+    a_over_rs = numpyro.deterministic(
+        "a_over_rs",
+        jnp.sqrt(
+            (
+                -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
+                + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
+            )
+            / jnp.sin((theta_tot + theta_full) / 2)
+            / jnp.sin((theta_tot - theta_full) / 2)
+        ),
+    )
+    cosi = numpyro.deterministic(
+        "cosi",
+        jnp.sqrt(
+            (
+                (1 - jnp.sqrt(depth)) ** 2 * jnp.sin(theta_tot / 2) ** 2
+                - (1 + jnp.sqrt(depth)) ** 2 * jnp.sin(theta_full / 2) ** 2
+            )
+            / (
+                -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
+                + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
+            )
+        ),
+    )
+    flux = transit_compute_flux_ecc0(
+        time, rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
+    )
+    with numpyro.plate("wavelength", num_lightcurve, dim=-2):
+        with numpyro.plate("time", len(time), dim=-1):
+            numpyro.sample(
+                "light_curve",
+                dist.Normal(
+                    flux * baseline[:, None],
+                    jitter[:, None] * jnp.ones_like(flux),
+                ),
+                obs=flux_obs,
+            )
+
+
+def guide_ecc0(flux_obs, time, num_lightcurve):
+    with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
+        loc_t0 = numpyro.param("loc_t0", 0.0 * jnp.ones(num_lightcurve))
+        scale_t0 = numpyro.param(
+            "scale_t0", 10.0 * jnp.ones(num_lightcurve), constraint=constraints.positive
+        )
+        numpyro.sample(
+            "t0", dist.TruncatedNormal(loc_t0, scale_t0, low=-5000, high=5000)
+        )
+
+        loc_Ttot = numpyro.param(
+            "loc_Ttot",
+            10000.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_Ttot = numpyro.param(
+            "scale_Ttot",
+            50.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        Ttot = numpyro.sample(
+            "Ttot", dist.TruncatedNormal(loc_Ttot, scale_Ttot, low=9000, high=13000)
+        )
+
+        loc_Tfull = numpyro.param(
+            "loc_Tfull",
+            7000.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_Tfull = numpyro.param(
+            "scale_Tfull",
+            50.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
         Tfull = numpyro.sample(
-            "Tfull_1d", dist.Uniform(jnp.ones_like(Ttot) * 1000, Ttot)
+            "Tfull",
+            dist.TruncatedNormal(
+                loc_Tfull, scale_Tfull, low=6000 * jnp.ones(num_lightcurve), high=Ttot
+            ),
         )
 
         theta_tot = 2 * jnp.pi * Ttot / period
@@ -37,251 +131,212 @@ def model_ecc0(flux_obs, time, num_elements):
             (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
             / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
         ) ** 2
-        depth = numpyro.sample(
-            "depth_1d", dist.Uniform(jnp.zeros_like(depth_max), depth_max)
-        )
 
-        u1 = numpyro.sample("u1_1d", dist.Uniform(-3, 3))
-        u2 = numpyro.sample("u2_1d", dist.Uniform(-3, 3))
-        baseline = numpyro.sample("baseline_1d", dist.Uniform(0.99, 1.01))
-        jitter = numpyro.sample("jitter_1d", dist.Uniform(0, 0.01))
-
-        rp_over_rs = numpyro.deterministic("rp_over_rs", jnp.sqrt(depth))
-        a_over_rs = numpyro.deterministic(
-            "a_over_rs",
-            jnp.sqrt(
-                (
-                    -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
-                    + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
-                )
-                / jnp.sin((theta_tot + theta_full) / 2)
-                / jnp.sin((theta_tot - theta_full) / 2)
-            ),
+        loc_depth = numpyro.param(
+            "loc_depth",
+            0.02 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
         )
-        cosi = numpyro.deterministic(
-            "cosi",
-            jnp.sqrt(
-                (
-                    (1 - jnp.sqrt(depth)) ** 2 * jnp.sin(theta_tot / 2) ** 2
-                    - (1 + jnp.sqrt(depth)) ** 2 * jnp.sin(theta_full / 2) ** 2
-                )
-                / (
-                    -((1 - jnp.sqrt(depth)) ** 2) * jnp.cos(theta_tot / 2) ** 2
-                    + (1 + jnp.sqrt(depth)) ** 2 * jnp.cos(theta_full / 2) ** 2
-                )
-            ),
-        )
-
-        flux = transit_compute_flux_ecc0(
-            time,
-            rp_over_rs[:, 0],
-            t0[:, 0],
-            period,
-            a_over_rs[:, 0],
-            cosi[:, 0],
-            u1[:, 0],
-            u2[:, 0],
+        scale_depth = numpyro.param(
+            "scale_depth",
+            0.0001 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
         )
         numpyro.sample(
-            "light_curve",
-            dist.Normal(
-                flux * baseline,
-                jitter * jnp.ones_like(flux),
+            "depth",
+            dist.TruncatedNormal(
+                loc_depth,
+                scale_depth,
+                low=0.01 * jnp.ones(num_lightcurve),
+                high=depth_max,
             ),
-            obs=flux_obs.reshape((num_elements, len(time))),
         )
 
-    t0 = numpyro.deterministic("t0", t0.reshape(shape_params))
-    Ttot = numpyro.deterministic("Ttot", Ttot.reshape(shape_params))
-    Tfull = numpyro.deterministic("Tfull", Tfull.reshape(shape_params))
-    depth = numpyro.deterministic("depth", depth.reshape(shape_params))
-    u1 = numpyro.deterministic("u1", u1.reshape(shape_params))
-    u2 = numpyro.deterministic("u2", u2.reshape(shape_params))
-    baseline = numpyro.deterministic("baseline", baseline.reshape(shape_params))
-    jitter = numpyro.deterministic("jitter", jitter.reshape(shape_params))
+        loc_u1 = numpyro.param("loc_u1", 0.1 * jnp.ones(num_lightcurve))
+        scale_u1 = numpyro.param(
+            "scale_u1", 0.2 * jnp.ones(num_lightcurve), constraint=constraints.positive
+        )
+        numpyro.sample("u1", dist.TruncatedNormal(loc_u1, scale_u1, low=-3, high=3))
+
+        loc_u2 = numpyro.param("loc_u2", 0.1 * jnp.ones(num_lightcurve))
+        scale_u2 = numpyro.param(
+            "scale_u2", 0.2 * jnp.ones(num_lightcurve), constraint=constraints.positive
+        )
+        numpyro.sample("u2", dist.TruncatedNormal(loc_u2, scale_u2, low=-3, high=3))
+
+        loc_baseline = numpyro.param(
+            "loc_baseline",
+            1.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_baseline = numpyro.param(
+            "scale_baseline",
+            0.005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "baseline",
+            dist.TruncatedNormal(loc_baseline, scale_baseline, low=0.99, high=1.01),
+        )
+
+        loc_jitter = numpyro.param(
+            "loc_jitter",
+            0.005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_jitter = numpyro.param(
+            "scale_jitter",
+            0.0005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "jitter", dist.TruncatedNormal(loc_jitter, scale_jitter, low=0, high=0.01)
+        )
 
 
-def model(flux_obs, time, shape_params):
+def model(flux_obs, time, num_lightcurve):
     period = period_day * 24 * 60 * 60
-    rp_over_rs = numpyro.sample("rp_over_rs", dist.Uniform(0, 0.5).expand(shape_params))
-    t0 = numpyro.sample("t0", dist.Uniform(-5000, 5000).expand(shape_params))
-    a_over_rs = numpyro.sample(
-        "a_over_rs", dist.Uniform(-5000, 5000).expand(shape_params)
-    )
+    with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
+        rp_over_rs = numpyro.sample("rp_over_rs", dist.Uniform(0, 0.5))
+        t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
+        a_over_rs = numpyro.sample("a_over_rs", dist.Uniform(5, 20))
+        ecosw = numpyro.sample("ecosw", dist.Uniform(0, 1.0))
+        esinw = numpyro.sample("esinw", dist.Uniform(0, 1.0))
+        b = numpyro.sample("b", dist.Uniform(0, 1.0))
+        u1 = numpyro.sample("u1", dist.Uniform(-3, 3))
+        u2 = numpyro.sample("u2", dist.Uniform(-3, 3))
+        baseline = numpyro.sample("baseline", dist.Uniform(0.99, 1.01))
+        jitter = numpyro.sample("jitter", dist.Uniform(0, 0.01))
 
-    ecosw = numpyro.sample("ecosw", dist.Uniform(0, 1.0).expand(shape_params))
-    esinw = numpyro.sample("esinw", dist.Uniform(0, 1.0).expand(shape_params))
+    cosi = numpyro.deterministic("cosi", b / a_over_rs)
     ecc = numpyro.deterministic("ecc", jnp.sqrt(ecosw**2 + esinw**2))
     omega = numpyro.deterministic(
         "omega", jnp.where(ecc > 0, jnp.arctan2(esinw / ecc, ecosw / ecc), 0.0)
     )
-
-    b = numpyro.sample("b", dist.Uniform(0, 1.0).expand(shape_params))
-    cosi = numpyro.deterministic("cosi", b / a_over_rs)
-
-    u1 = numpyro.sample("u1", dist.Uniform(-3, 3).expand(shape_params))
-    u2 = numpyro.sample("u2", dist.Uniform(-3, 3).expand(shape_params))
-    baseline = numpyro.sample("baseline", dist.Uniform(0.99, 1.01).expand(shape_params))
-    jitter = numpyro.sample("jitter", dist.Uniform(0, 0.01).expand(shape_params))
-
     flux = transit_compute_flux(
         time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
     )
-    numpyro.sample(
-        "light_curve",
-        dist.Normal(
-            flux * jnp.expand_dims(baseline, axis=-1),
-            jnp.expand_dims(jitter, axis=-1) * jnp.ones_like(flux),
-        ),
-        obs=flux_obs,
-    )
+    with numpyro.plate("wavelength", num_lightcurve, dim=-2):
+        with numpyro.plate("time", len(time), dim=-1):
+            numpyro.sample(
+                "light_curve",
+                dist.Normal(
+                    flux * baseline[:, None],
+                    jitter[:, None] * jnp.ones_like(flux),
+                ),
+                obs=flux_obs,
+            )
 
 
-def lightcurve_fit_plot(
-    time,
-    flux,
-    pred_median,
-    pred_hpdi,
-    hpdi_range,
-    title="",
-    dir_output="",
-    filename="light_curve_fit.png",
-):
-    """Make figures of lightcurve data and MCMC fit."""
-    plt.figure(figsize=(12, 24))
-    for i in range(len(flux)):
-        plt.plot(
-            time,
-            flux[i] - 0.01 * i,
-            marker=".",
-            markersize=3,
-            linestyle="None",
-            # color="dodgerblue"
+def guide(flux_obs, time, num_lightcurve):
+    with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
+        loc_rp_over_rs = numpyro.param(
+            "loc_rp_over_rs", 0.145 * jnp.ones(num_lightcurve)
         )
-        plt.plot(
-            time,
-            pred_median[i] - 0.01 * i,
-            color="black",
-            # lw=3,
-            # zorder=5,
-            # alpha=0.7,
+        scale_rp_over_rs = numpyro.param(
+            "scale_rp_over_rs",
+            0.002 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
         )
-        plt.fill_between(
-            time,
-            pred_hpdi[0, i] - 0.01 * i,
-            pred_hpdi[1, i] - 0.01 * i,
-            alpha=0.2,
-            interpolate=True,
-            color="black",
-            label=f"{int(hpdi_range*100)}% area",
+        numpyro.sample(
+            "rp_over_rs",
+            dist.TruncatedNormal(loc_rp_over_rs, scale_rp_over_rs, low=0, high=0.5),
         )
-    # plt.legend()
-    plt.title(title)
-    plt.xlabel("Time")
-    plt.ylabel("Relative Flux")
-    plt.tight_layout()
-    plt.savefig(dir_output + filename)
-    plt.close()
 
-    plt.figure(figsize=(12, 24))
-    for i in range(len(flux)):
-        plt.plot(
-            time,
-            flux[i] - pred_median[i] - 0.01 * i,
-            marker=".",
-            markersize=3,
-            linestyle="None",
-            # color="dodgerblue",
+        loc_t0 = numpyro.param("loc_t0", 0.0 * jnp.ones(num_lightcurve))
+        scale_t0 = numpyro.param(
+            "scale_t0", 10.0 * jnp.ones(num_lightcurve), constraint=constraints.positive
         )
-        plt.fill_between(
-            time,
-            pred_hpdi[0, i] - pred_median[i] - 0.01 * i,
-            pred_hpdi[1, i] - pred_median[i] - 0.01 * i,
-            alpha=0.2,
-            interpolate=True,
-            color="black",
-            label=f"{int(hpdi_range*100)}% area",
+        numpyro.sample(
+            "t0", dist.TruncatedNormal(loc_t0, scale_t0, low=-5000, high=5000)
         )
-    # plt.legend()
-    plt.title(title)
-    plt.xlabel("Time")
-    plt.ylabel("Relative Flux")
-    plt.tight_layout()
-    plt.savefig(dir_output + filename.rsplit(".", 1)[0] + "_residual.png")
-    plt.close()
 
+        loc_a_over_rs = numpyro.param("loc_a_over_rs", 11.4 * jnp.ones(num_lightcurve))
+        scale_a_over_rs = numpyro.param(
+            "scale_a_over_rs",
+            0.1 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "a_over_rs",
+            dist.TruncatedNormal(loc_a_over_rs, scale_a_over_rs, low=5, high=20),
+        )
 
-def prediction_plot(
-    x,
-    input,
-    prediction_median,
-    prediction_hpdi_68,
-    xlabel="",
-    ylabel="",
-    title="",
-    dir_output="",
-    filename="prediction.png",
-):
-    """Make a figure of MCMC fit."""
-    fig = plt.figure(figsize=(12, 12))
-    ax1 = fig.add_subplot(2, 1, 1)
-    ax2 = fig.add_subplot(2, 1, 2)
+        loc_ecosw = numpyro.param("loc_ecosw", 0.05 * jnp.ones(num_lightcurve))
+        scale_ecosw = numpyro.param(
+            "scale_ecosw",
+            0.1 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "ecosw", dist.TruncatedNormal(loc_ecosw, scale_ecosw, low=0, high=1.0)
+        )
 
-    ax1.scatter(
-        x,
-        input,
-        color="dodgerblue",
-        marker="o",
-        s=80,
-        # linestyle="None",
-        # color="0.0",
-        # ecolor="0.3",
-        # elinewidth=0.8,
-        # zorder=3,
-        label="Input",
-    )
-    ax1.errorbar(
-        x,
-        prediction_median,
-        yerr=prediction_hpdi_68,
-        color="black",
-        marker="o",
-        linestyle="None",
-        # lw=3,
-        # zorder=5,
-        # alpha=0.7,
-        label="Prediction",
-    )
-    ax1.set_title(title)
-    ax1.set_ylabel(ylabel)
-    ax1.legend()
+        loc_esinw = numpyro.param("loc_esinw", 0.05 * jnp.ones(num_lightcurve))
+        scale_esinw = numpyro.param(
+            "scale_esinw",
+            0.1 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "esinw", dist.TruncatedNormal(loc_esinw, scale_esinw, low=0, high=1.0)
+        )
 
-    ax2.errorbar(
-        x,
-        prediction_median - input,
-        yerr=prediction_hpdi_68,
-        color="black",
-        marker="o",
-        linestyle="None",
-        # lw=3,
-        # zorder=5,
-        # alpha=0.7,
-        label="Prediction - Input",
-    )
-    ax2.set_ylabel("Residual")
-    ax2.set_xlabel(xlabel)
-    ax2.legend()
+        loc_b = numpyro.param("loc_b", 0.45 * jnp.ones(num_lightcurve))
+        scale_b = numpyro.param(
+            "scale_b",
+            0.05 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample("b", dist.TruncatedNormal(loc_b, scale_b, low=0, high=1.0))
 
-    plt.setp(ax1.get_xticklabels(), visible=False)
-    plt.tight_layout()
-    plt.subplots_adjust(hspace=0.05)
-    plt.savefig(dir_output + filename)
-    plt.close()
+        loc_u1 = numpyro.param("loc_u1", 0.1 * jnp.ones(num_lightcurve))
+        scale_u1 = numpyro.param(
+            "scale_u1", 0.2 * jnp.ones(num_lightcurve), constraint=constraints.positive
+        )
+        numpyro.sample("u1", dist.TruncatedNormal(loc_u1, scale_u1, low=-3, high=3))
+
+        loc_u2 = numpyro.param("loc_u2", 0.1 * jnp.ones(num_lightcurve))
+        scale_u2 = numpyro.param(
+            "scale_u2", 0.2 * jnp.ones(num_lightcurve), constraint=constraints.positive
+        )
+        numpyro.sample("u2", dist.TruncatedNormal(loc_u2, scale_u2, low=-3, high=3))
+
+        loc_baseline = numpyro.param(
+            "loc_baseline",
+            1.0 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_baseline = numpyro.param(
+            "scale_baseline",
+            0.005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "baseline",
+            dist.TruncatedNormal(loc_baseline, scale_baseline, low=0.99, high=1.01),
+        )
+
+        loc_jitter = numpyro.param(
+            "loc_jitter",
+            0.005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_jitter = numpyro.param(
+            "scale_jitter",
+            0.0005 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        numpyro.sample(
+            "jitter", dist.TruncatedNormal(loc_jitter, scale_jitter, low=0, high=0.01)
+        )
 
 
 if __name__ == "__main__":
-    dir_output = "mcmc_results/"
+    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_0001/"
+    dir_output = "mcmc_results/model_eccfree_jitter_0001/"
     os.makedirs(dir_output, exist_ok=True)
+    os.makedirs(dir_output_ecc0, exist_ok=True)
 
     default_fontsize = plt.rcParams["font.size"]
     fontsize = 28
@@ -306,12 +361,18 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
+    jitter = 0.001
+    t1, t2, t3, t4 = calc_contact_times(
+        rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
+    )
 
     flux = transit_compute_flux(
         time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
     )
-    error = 0.0005 * random.normal(rng_key_, shape=flux.shape)
+    error = jitter * random.normal(rng_key_, shape=flux.shape)
+    # error = jitter * random.normal(rng_key_, shape=flux.shape)
     flux = flux + error
+    jnp.save(dir_output_ecc0 + "flux", flux)
     jnp.save(dir_output + "flux", flux)
 
     for i in range(len(flux)):
@@ -337,28 +398,49 @@ if __name__ == "__main__":
         )
         plt.close()
 
-    num_warmup = 2000
-    num_samples = 2000
+    num_warmup = 100
+    num_samples = 100
+
+    #################### eccentricity = 0 fixed ####################
+    rng_key, rng_key_ = random.split(rng_key)
+
+    optimizer = numpyro.optim.Adam(step_size=0.0005)
+    svi = SVI(model_ecc0, guide_ecc0, optimizer, loss=Trace_ELBO())
+    svi_result = svi.run(
+        rng_key_,
+        2000,
+        flux_obs=flux.reshape((-1, len(time))),
+        time=time,
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+    )
+    params_svi = svi_result.params
+
+    params = ["t0", "Ttot", "Tfull", "depth", "u1", "u2", "baseline", "jitter"]
+    init_values = {}
+    for param in params:
+        print("loc_" + param, params_svi["loc_" + param])
+        print("scale_" + param, params_svi["scale_" + param])
+        init_values[param] = params_svi["loc_" + param]
+    init_strategy = init_to_value(values=init_values)
 
     rng_key, rng_key_ = random.split(rng_key)
     kernel = NUTS(
         model_ecc0,
         forward_mode_differentiation=False,
         # max_tree_depth=13,
-        # init_strategy=init_strategy,
+        init_strategy=init_strategy,
         # target_accept_prob=0.9,
     )
-
     mcmc = MCMC(kernel, num_warmup=num_warmup, num_samples=num_samples)
     mcmc.run(
         rng_key_,
-        flux_obs=flux,
+        flux_obs=flux.reshape((-1, len(time))),
         time=time,
-        num_elements=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
     )
 
     mcmc.print_summary()
-    with open(dir_output + "mcmc_summary_ecc0.txt", "w") as f:
+    with open(dir_output_ecc0 + "mcmc_summary_ecc0.txt", "w") as f:
         # save current stdout
         original_stdout = sys.stdout
         # redirect stdout to a file
@@ -372,7 +454,7 @@ if __name__ == "__main__":
 
     # SAMPLING
     posterior_sample = mcmc.get_samples()
-    jnp.savez(dir_output + "posterior_sample_ecc0", **posterior_sample)
+    jnp.savez(dir_output_ecc0 + "posterior_sample_ecc0", **posterior_sample)
 
     rng_key, rng_key_ = random.split(rng_key)
     pred = Predictive(model_ecc0, posterior_sample)
@@ -380,13 +462,233 @@ if __name__ == "__main__":
         rng_key_,
         flux_obs=None,
         time=time,
-        num_elements=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
     )
-    jnp.savez(dir_output + "predictions_ecc0", **predictions)
+    jnp.savez(dir_output_ecc0 + "predictions_ecc0", **predictions)
+    # predictions = jnp.load(dir_output_ecc0 + "predictions_ecc0.npz")
+
+    pred_light_curve = predictions["light_curve"].reshape((num_samples, *flux.shape))
+    for i in range(len(ecc)):
+        pred_median = jnp.median(pred_light_curve[:, i], axis=0)
+        pred_hpdi = hpdi(pred_light_curve[:, i], 0.90)
+        lightcurve_fit_plot(
+            time,
+            flux[i],
+            pred_median,
+            pred_hpdi,
+            hpdi_range=0.90,
+            title=f"Light Curve ($e\cos\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
+            + f"$e\sin\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})",
+            dir_output=dir_output_ecc0,
+            filename=f"fit_lightcurve_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
+            + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}_ecc0fix.png",
+        )
+
+    # posterior_sample = jnp.load(dir_output_ecc0 + "posterior_sample_ecc0.npz")
+    input = [
+        t1,
+        t2,
+        t3,
+        t4,
+        t4 - t1,
+        t3 - t2,
+        jnp.array(rp_over_rs) * jnp.ones_like(t1),
+        jnp.array(t0) * jnp.ones_like(t1),
+        jnp.array(a_over_rs) * jnp.ones_like(t1),
+        jnp.array(cosi * a_over_rs) * jnp.ones_like(t1),
+        jnp.array(u1) * jnp.ones_like(t1),
+        jnp.array(u2) * jnp.ones_like(t1),
+        jnp.ones_like(t1),
+        jitter * jnp.ones_like(t1),
+    ]
+
+    for param in posterior_sample:
+        posterior_sample[param] = posterior_sample[param].reshape(
+            (num_samples, *flux.shape[:-1])
+        )
+    t1_pred = posterior_sample["t0"] - posterior_sample["Ttot"] / 2
+    t2_pred = posterior_sample["t0"] - posterior_sample["Tfull"] / 2
+    t3_pred = posterior_sample["t0"] + posterior_sample["Tfull"] / 2
+    t4_pred = posterior_sample["t0"] + posterior_sample["Ttot"] / 2
+    pred_median = [
+        jnp.median(t1_pred, axis=0),
+        jnp.median(t2_pred, axis=0),
+        jnp.median(t3_pred, axis=0),
+        jnp.median(t4_pred, axis=0),
+        jnp.median(posterior_sample["Ttot"], axis=0),
+        jnp.median(posterior_sample["Tfull"], axis=0),
+        jnp.median(posterior_sample["rp_over_rs"], axis=0),
+        jnp.median(posterior_sample["t0"], axis=0),
+        jnp.median(posterior_sample["a_over_rs"], axis=0),
+        jnp.median(posterior_sample["cosi"] * posterior_sample["a_over_rs"], axis=0),
+        jnp.median(posterior_sample["u1"], axis=0),
+        jnp.median(posterior_sample["u2"], axis=0),
+        jnp.median(posterior_sample["baseline"], axis=0),
+        jnp.median(posterior_sample["jitter"], axis=0),
+    ]
+    pred_hpdi = [
+        hpdi(t1_pred, 0.68),
+        hpdi(t2_pred, 0.68),
+        hpdi(t3_pred, 0.68),
+        hpdi(t4_pred, 0.68),
+        hpdi(posterior_sample["Ttot"], 0.68),
+        hpdi(posterior_sample["Tfull"], 0.68),
+        hpdi(posterior_sample["rp_over_rs"], 0.68),
+        hpdi(posterior_sample["t0"], 0.68),
+        hpdi(posterior_sample["a_over_rs"], 0.68),
+        hpdi(posterior_sample["cosi"] * posterior_sample["a_over_rs"], 0.68),
+        hpdi(posterior_sample["u1"], 0.68),
+        hpdi(posterior_sample["u2"], 0.68),
+        hpdi(posterior_sample["baseline"], 0.68),
+        hpdi(posterior_sample["jitter"], 0.68),
+    ]
+    pred_yerr = jnp.array(
+        [
+            [median_i - hpdi_i[0], hpdi_i[1] - median_i]
+            for median_i, hpdi_i in zip(pred_median, pred_hpdi)
+        ]
+    )
+    xlabel = "Wavelength ($\mathrm{\mu m}$)"
+    ylabel = [
+        "$t_{\mathrm{I}}$",
+        "$t_{\mathrm{II}}$",
+        "$t_{\mathrm{III}}$",
+        "$t_{\mathrm{IV}}$",
+        "$T_{\mathrm{tot}}$",
+        "$T_{\mathrm{full}}$",
+        "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
+        "$t_0$",
+        "$a/R_{\mathrm{s}}$",
+        "$b$",
+        "$u_1$",
+        "$u_2$",
+        "baseline",
+        "jitter",
+    ]
 
     for i in range(len(ecc)):
-        pred_median = jnp.median(predictions["light_curve"][:, i], axis=0)
-        pred_hpdi = hpdi(predictions["light_curve"][:, i], 0.90)
+        title_e = (
+            rf" ($e\cos\omega$ ={ecc[i][0]*jnp.cos(omega[i][0]):.1f}, "
+            + rf"$e\sin\omega$ ={ecc[i][0]*jnp.sin(omega[i][0]):.1f})"
+        )
+        filename_e = (
+            f"_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
+            + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}_ecc0fix.png"
+        )
+        title = [ylabel_i + title_e for ylabel_i in ylabel]
+        filename = [
+            param_i + filename_e
+            for param_i in [
+                "t1",
+                "t2",
+                "t3",
+                "t4",
+                "Ttot",
+                "Tfull",
+                "rp",
+                "t0",
+                "a",
+                "b",
+                "u1",
+                "u2",
+                "baseline",
+                "jitter",
+            ]
+        ]
+        for j, title_j in enumerate(title):
+            prediction_plot(
+                wavelength,
+                input[j][i],
+                pred_median[j][i],
+                pred_yerr[j][:, i],
+                xlabel,
+                ylabel[j],
+                title_j,
+                dir_output_ecc0,
+                filename[j],
+            )
+
+    #################### eccentricity free ####################
+    rng_key, rng_key_ = random.split(rng_key)
+
+    optimizer = numpyro.optim.Adam(step_size=0.0005)
+    svi = SVI(model, guide, optimizer, loss=Trace_ELBO())
+    svi_result = svi.run(
+        rng_key_,
+        2000,
+        flux_obs=flux.reshape((-1, len(time))),
+        time=time,
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+    )
+    params_svi = svi_result.params
+
+    params = [
+        "rp_over_rs",
+        "t0",
+        "a_over_rs",
+        "ecosw",
+        "esinw",
+        "b",
+        "u1",
+        "u2",
+        "baseline",
+        "jitter",
+    ]
+    init_values = {}
+    for param in params:
+        print("loc_" + param, params_svi["loc_" + param])
+        print("scale_" + param, params_svi["scale_" + param])
+        init_values[param] = params_svi["loc_" + param]
+    init_strategy = init_to_value(values=init_values)
+
+    rng_key, rng_key_ = random.split(rng_key)
+    kernel = NUTS(
+        model,
+        forward_mode_differentiation=False,
+        # max_tree_depth=13,
+        init_strategy=init_strategy,
+        # target_accept_prob=0.9,
+    )
+    mcmc = MCMC(kernel, num_warmup=num_warmup, num_samples=num_samples)
+    mcmc.run(
+        rng_key_,
+        flux_obs=flux.reshape((-1, len(time))),
+        time=time,
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+    )
+
+    mcmc.print_summary()
+    with open(dir_output + "mcmc_summary.txt", "w") as f:
+        # save current stdout
+        original_stdout = sys.stdout
+        # redirect stdout to a file
+        sys.stdout = f
+
+        # write output to file
+        mcmc.print_summary()
+
+        # restore the stdout
+        sys.stdout = original_stdout
+
+    # SAMPLING
+    posterior_sample = mcmc.get_samples()
+    jnp.savez(dir_output + "posterior_sample", **posterior_sample)
+
+    rng_key, rng_key_ = random.split(rng_key)
+    pred = Predictive(model, posterior_sample)
+    predictions = pred(
+        rng_key_,
+        flux_obs=None,
+        time=time,
+        num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
+    )
+    jnp.savez(dir_output + "predictions", **predictions)
+    # predictions = jnp.load(dir_output + "predictions_ecc0.npz")
+
+    pred_light_curve = predictions["light_curve"].reshape((num_samples, *flux.shape))
+    for i in range(len(ecc)):
+        pred_median = jnp.median(pred_light_curve[:, i], axis=0)
+        pred_hpdi = hpdi(pred_light_curve[:, i], 0.90)
         lightcurve_fit_plot(
             time,
             flux[i],
@@ -400,40 +702,74 @@ if __name__ == "__main__":
             + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png",
         )
 
-    t1, t2, t3, t4 = calc_contact_times(
-        rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
-    )
+    # posterior_sample = jnp.load(dir_output + "posterior_sample_ecc0.npz")
     input = [
-        jnp.array(rp_over_rs) * jnp.ones_like(t1),
-        jnp.array(u1) * jnp.ones_like(t1),
-        jnp.array(u2) * jnp.ones_like(t1),
         t1,
         t2,
         t3,
         t4,
+        t4 - t1,
+        t3 - t2,
+        jnp.array(rp_over_rs) * jnp.ones_like(t1),
+        jnp.array(t0) * jnp.ones_like(t1),
+        jnp.array(a_over_rs) * jnp.ones_like(t1),
+        jnp.array(ecc) * jnp.array(jnp.cos(omega)) * jnp.ones_like(t1),
+        jnp.array(ecc) * jnp.array(jnp.sin(omega)) * jnp.ones_like(t1),
+        jnp.array(cosi * a_over_rs) * jnp.ones_like(t1),
+        jnp.array(u1) * jnp.ones_like(t1),
+        jnp.array(u2) * jnp.ones_like(t1),
+        jnp.ones_like(t1),
+        jitter * jnp.ones_like(t1),
     ]
 
-    t1_pred = posterior_sample["t0"] - posterior_sample["Ttot"] / 2
-    t2_pred = posterior_sample["t0"] - posterior_sample["Tfull"] / 2
-    t3_pred = posterior_sample["t0"] + posterior_sample["Tfull"] / 2
-    t4_pred = posterior_sample["t0"] + posterior_sample["Ttot"] / 2
+    for param in posterior_sample:
+        posterior_sample[param] = posterior_sample[param].reshape(
+            (num_samples, *flux.shape[:-1])
+        )
+    t1_pred, t2_pred, t3_pred, t4_pred = calc_contact_times(
+        posterior_sample["rp_over_rs"],
+        period,
+        posterior_sample["a_over_rs"],
+        posterior_sample["ecc"],
+        posterior_sample["omega"],
+        posterior_sample["cosi"],
+        posterior_sample["t0"],
+    )
     pred_median = [
-        jnp.median(posterior_sample["rp_over_rs"], axis=0),
-        jnp.median(posterior_sample["u1"], axis=0),
-        jnp.median(posterior_sample["u2"], axis=0),
         jnp.median(t1_pred, axis=0),
         jnp.median(t2_pred, axis=0),
         jnp.median(t3_pred, axis=0),
         jnp.median(t4_pred, axis=0),
+        jnp.median(t4_pred - t1_pred, axis=0),
+        jnp.median(t3_pred - t2_pred, axis=0),
+        jnp.median(posterior_sample["rp_over_rs"], axis=0),
+        jnp.median(posterior_sample["t0"], axis=0),
+        jnp.median(posterior_sample["a_over_rs"], axis=0),
+        jnp.median(posterior_sample["ecosw"], axis=0),
+        jnp.median(posterior_sample["esinw"], axis=0),
+        jnp.median(posterior_sample["b"], axis=0),
+        jnp.median(posterior_sample["u1"], axis=0),
+        jnp.median(posterior_sample["u2"], axis=0),
+        jnp.median(posterior_sample["baseline"], axis=0),
+        jnp.median(posterior_sample["jitter"], axis=0),
     ]
     pred_hpdi = [
-        hpdi(posterior_sample["rp_over_rs"], 0.68),
-        hpdi(posterior_sample["u1"], 0.68),
-        hpdi(posterior_sample["u2"], 0.68),
         hpdi(t1_pred, 0.68),
         hpdi(t2_pred, 0.68),
         hpdi(t3_pred, 0.68),
         hpdi(t4_pred, 0.68),
+        hpdi(t4_pred - t1_pred, 0.68),
+        hpdi(t3_pred - t2_pred, 0.68),
+        hpdi(posterior_sample["rp_over_rs"], 0.68),
+        hpdi(posterior_sample["t0"], 0.68),
+        hpdi(posterior_sample["a_over_rs"], 0.68),
+        hpdi(posterior_sample["ecosw"], 0.68),
+        hpdi(posterior_sample["esinw"], 0.68),
+        hpdi(posterior_sample["b"], 0.68),
+        hpdi(posterior_sample["u1"], 0.68),
+        hpdi(posterior_sample["u2"], 0.68),
+        hpdi(posterior_sample["baseline"], 0.68),
+        hpdi(posterior_sample["jitter"], 0.68),
     ]
     pred_yerr = jnp.array(
         [
@@ -443,13 +779,22 @@ if __name__ == "__main__":
     )
     xlabel = "Wavelength ($\mathrm{\mu m}$)"
     ylabel = [
-        "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
-        "$u_1$",
-        "$u_2$",
         "$t_{\mathrm{I}}$",
         "$t_{\mathrm{II}}$",
         "$t_{\mathrm{III}}$",
         "$t_{\mathrm{IV}}$",
+        "$T_{\mathrm{tot}}$",
+        "$T_{\mathrm{full}}$",
+        "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
+        "$t_0$",
+        "$a/R_{\mathrm{s}}$",
+        "$e\cos\omega$",
+        "$e\sin\omega$",
+        "$b$",
+        "$u_1$",
+        "$u_2$",
+        "baseline",
+        "jitter",
     ]
 
     for i in range(len(ecc)):
@@ -461,21 +806,27 @@ if __name__ == "__main__":
             f"_ecosw{ecc[i][0]*jnp.cos(omega[i][0]):.1f}"
             + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png"
         )
-        title = [
-            ylabel_i + title_e
-            for ylabel_i in [
-                "$R_{\mathrm{p}}/R_{\mathrm{s}}$",
-                "$u_1$",
-                "$u_2$",
-                "$t_{\mathrm{I}}$",
-                "$t_{\mathrm{II}}$",
-                "$t_{\mathrm{III}}$",
-                "$t_{\mathrm{IV}}$",
-            ]
-        ]
+        title = [ylabel_i + title_e for ylabel_i in ylabel]
         filename = [
             param_i + filename_e
-            for param_i in ["rp", "u1", "u2", "t1", "t2", "t3", "t4"]
+            for param_i in [
+                "t1",
+                "t2",
+                "t3",
+                "t4",
+                "Ttot",
+                "Tfull",
+                "rp",
+                "t0",
+                "a_over_rs",
+                "ecosw",
+                "esinw",
+                "b",
+                "u1",
+                "u2",
+                "baseline",
+                "jitter",
+            ]
         ]
         for j, title_j in enumerate(title):
             prediction_plot(

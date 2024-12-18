@@ -23,6 +23,9 @@ def transit_compute_flux(
     supersample_factor=10,
 ):
     """ """
+    rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2 = expand_arrays(
+        rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
+    )
     supersample_num = int(supersample_factor // 2 * 2 + 1)
     exposure_time = jnp.median(jnp.diff(time))
     dtarr = jnp.linspace(-0.5 * exposure_time, 0.5 * exposure_time, supersample_num)
@@ -58,6 +61,10 @@ def transit_compute_flux_ecc0(
     supersample_factor=10,
 ):
     """ """
+    rp_over_rs, t0, period, a_over_rs, cosi, u1, u2 = expand_arrays(
+        rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
+    )
+
     supersample_num = int(supersample_factor // 2 * 2 + 1)
     exposure_time = jnp.median(jnp.diff(time))
     dtarr = jnp.linspace(-0.5 * exposure_time, 0.5 * exposure_time, supersample_num)
@@ -83,11 +90,15 @@ def transit_compute_flux_ecc0(
 @jit
 def flux_from_rsky_over_rs(rsky_over_rs, rp_over_rs, u1, u2):
     inputs = [rp_over_rs, u1, u2]
+    arrays = [jnp.asarray(inp) for inp in inputs]
     # Process each input: add a new axis if it is an array
     processed_inputs = []
-    for inp in inputs:
-        arr = jnp.asarray(inp)  # Convert to jax.numpy array
-        if arr.ndim > 0:  # Check if it is an array (not a scalar)
+    max_shape = jnp.asarray(1)
+    for arr in arrays:
+        max_shape = max_shape * jnp.ones_like(arr)
+    for arr in arrays:
+        arr = arr * max_shape  # Convert to jax.numpy array
+        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
             arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
         processed_inputs.append(arr)
     rp_over_rs, u1, u2 = processed_inputs
