@@ -198,11 +198,11 @@ def model(flux_obs, time, num_lightcurve):
     period = period_day * 24 * 60 * 60
     with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
         rp_over_rs = numpyro.sample("rp_over_rs", dist.Uniform(0, 0.5))
-        t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
+        t0 = numpyro.sample("t0", dist.Uniform(-5000, 5000))
         a_over_rs = numpyro.sample("a_over_rs", dist.Uniform(1, 50))
         ecosw = numpyro.sample("ecosw", dist.Uniform(-1.0, 1.0))
         esinw = numpyro.sample("esinw", dist.Uniform(-1.0, 1.0))
-        b = numpyro.sample("b", dist.Uniform(0, 1.0))
+        b = numpyro.sample("b", dist.Uniform(0 * rp_over_rs, 1.0 - rp_over_rs))
         u1 = numpyro.sample("u1", dist.Uniform(-3, 3))
         u2 = numpyro.sample("u2", dist.Uniform(-3, 3))
         baseline = numpyro.sample("baseline", dist.Uniform(0.99, 1.01))
@@ -238,7 +238,7 @@ def guide(flux_obs, time, num_lightcurve):
             0.002 * jnp.ones(num_lightcurve),
             constraint=constraints.positive,
         )
-        numpyro.sample(
+        rp_over_rs = numpyro.sample(
             "rp_over_rs",
             dist.TruncatedNormal(loc_rp_over_rs, scale_rp_over_rs, low=0, high=0.5),
         )
@@ -288,7 +288,12 @@ def guide(flux_obs, time, num_lightcurve):
             0.05 * jnp.ones(num_lightcurve),
             constraint=constraints.positive,
         )
-        numpyro.sample("b", dist.TruncatedNormal(loc_b, scale_b, low=0, high=1.0))
+        numpyro.sample(
+            "b",
+            dist.TruncatedNormal(
+                loc_b, scale_b, low=0 * rp_over_rs, high=1.0 - rp_over_rs
+            ),
+        )
 
         loc_u1 = numpyro.param("loc_u1", 0.1 * jnp.ones(num_lightcurve))
         scale_u1 = numpyro.param(
@@ -333,8 +338,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 
 if __name__ == "__main__":
-    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_00001/"
-    dir_output = "mcmc_results/model_eccfree_jitter_00001/"
+    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_00005/"
+    dir_output = "mcmc_results/model_eccfree_jitter_00005/"
     os.makedirs(dir_output, exist_ok=True)
     os.makedirs(dir_output_ecc0, exist_ok=True)
 
@@ -349,6 +354,8 @@ if __name__ == "__main__":
 
     rng_key = random.key(0)
     rng_key, rng_key_ = random.split(rng_key)
+    num_warmup = 100
+    num_samples = 100
 
     wavelength = jnp.linspace(3.0, 5.0, 21)
     time = jnp.linspace(-150, 150, 301) * 65
@@ -361,7 +368,7 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 0.0001
+    jitter = 0.0005
     t1, t2, t3, t4 = calc_contact_times(
         rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
     )
@@ -397,9 +404,6 @@ if __name__ == "__main__":
             + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png"
         )
         plt.close()
-
-    num_warmup = 100
-    num_samples = 100
 
     #################### eccentricity = 0 fixed ####################
     rng_key, rng_key_ = random.split(rng_key)
@@ -466,6 +470,7 @@ if __name__ == "__main__":
     )
     jnp.savez(dir_output_ecc0 + "predictions_ecc0", **predictions)
     # predictions = jnp.load(dir_output_ecc0 + "predictions_ecc0.npz")
+    # predictions = {key: predictions[key] for key in predictions}
 
     pred_light_curve = predictions["light_curve"].reshape((num_samples, *flux.shape))
     for i in range(len(ecc)):
@@ -485,6 +490,8 @@ if __name__ == "__main__":
         )
 
     # posterior_sample = jnp.load(dir_output_ecc0 + "posterior_sample_ecc0.npz")
+    # posterior_sample = {key: posterior_sample[key] for key in posterior_sample}
+
     input = [
         t1,
         t2,
@@ -684,6 +691,7 @@ if __name__ == "__main__":
     )
     jnp.savez(dir_output + "predictions", **predictions)
     # predictions = jnp.load(dir_output + "predictions_ecc0.npz")
+    # predictions = {key: predictions[key] for key in predictions}
 
     pred_light_curve = predictions["light_curve"].reshape((num_samples, *flux.shape))
     for i in range(len(ecc)):
@@ -702,7 +710,9 @@ if __name__ == "__main__":
             + f"_esinw{ecc[i][0]*jnp.sin(omega[i][0]):.1f}.png",
         )
 
-    # posterior_sample = jnp.load(dir_output + "posterior_sample_ecc0.npz")
+    # posterior_sample = jnp.load(dir_output + "posterior_sample.npz")
+    # posterior_sample = {key: posterior_sample[key] for key in posterior_sample}
+
     input = [
         t1,
         t2,
@@ -713,8 +723,8 @@ if __name__ == "__main__":
         jnp.array(rp_over_rs) * jnp.ones_like(t1),
         jnp.array(t0) * jnp.ones_like(t1),
         jnp.array(a_over_rs) * jnp.ones_like(t1),
-        jnp.array(ecc) * jnp.array(jnp.cos(omega)) * jnp.ones_like(t1),
-        jnp.array(ecc) * jnp.array(jnp.sin(omega)) * jnp.ones_like(t1),
+        jnp.array(ecc) * jnp.cos(jnp.array(omega)) * jnp.ones_like(t1),
+        jnp.array(ecc) * jnp.sin(jnp.array(omega)) * jnp.ones_like(t1),
         jnp.array(cosi * a_over_rs) * jnp.ones_like(t1),
         jnp.array(u1) * jnp.ones_like(t1),
         jnp.array(u2) * jnp.ones_like(t1),
