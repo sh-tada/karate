@@ -199,9 +199,9 @@ def model(flux_obs, time, num_lightcurve):
     with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
         rp_over_rs = numpyro.sample("rp_over_rs", dist.Uniform(0, 0.5))
         t0 = numpyro.sample("t0_1d", dist.Uniform(-5000, 5000))
-        a_over_rs = numpyro.sample("a_over_rs", dist.Uniform(5, 20))
-        ecosw = numpyro.sample("ecosw", dist.Uniform(0, 1.0))
-        esinw = numpyro.sample("esinw", dist.Uniform(0, 1.0))
+        a_over_rs = numpyro.sample("a_over_rs", dist.Uniform(1, 50))
+        ecosw = numpyro.sample("ecosw", dist.Uniform(-1.0, 1.0))
+        esinw = numpyro.sample("esinw", dist.Uniform(-1.0, 1.0))
         b = numpyro.sample("b", dist.Uniform(0, 1.0))
         u1 = numpyro.sample("u1", dist.Uniform(-3, 3))
         u2 = numpyro.sample("u2", dist.Uniform(-3, 3))
@@ -269,7 +269,7 @@ def guide(flux_obs, time, num_lightcurve):
             constraint=constraints.positive,
         )
         numpyro.sample(
-            "ecosw", dist.TruncatedNormal(loc_ecosw, scale_ecosw, low=0, high=1.0)
+            "ecosw", dist.TruncatedNormal(loc_ecosw, scale_ecosw, low=-1.0, high=1.0)
         )
 
         loc_esinw = numpyro.param("loc_esinw", 0.05 * jnp.ones(num_lightcurve))
@@ -279,7 +279,7 @@ def guide(flux_obs, time, num_lightcurve):
             constraint=constraints.positive,
         )
         numpyro.sample(
-            "esinw", dist.TruncatedNormal(loc_esinw, scale_esinw, low=0, high=1.0)
+            "esinw", dist.TruncatedNormal(loc_esinw, scale_esinw, low=-1.0, high=1.0)
         )
 
         loc_b = numpyro.param("loc_b", 0.45 * jnp.ones(num_lightcurve))
@@ -333,8 +333,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 
 if __name__ == "__main__":
-    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_0001/"
-    dir_output = "mcmc_results/model_eccfree_jitter_0001/"
+    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_00001/"
+    dir_output = "mcmc_results/model_eccfree_jitter_00001/"
     os.makedirs(dir_output, exist_ok=True)
     os.makedirs(dir_output_ecc0, exist_ok=True)
 
@@ -361,7 +361,7 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 0.001
+    jitter = 0.0001
     t1, t2, t3, t4 = calc_contact_times(
         rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
     )
