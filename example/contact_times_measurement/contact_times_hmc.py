@@ -329,10 +329,10 @@ def guide(flux_obs, time, num_lightcurve):
 
 
 if __name__ == "__main__":
-    dir_output_ecc0 = "mcmc_results/model_ecc0_jitter_00005/"
-    dir_output = "mcmc_results/model_eccfree_jitter_00005/"
-    os.makedirs(dir_output, exist_ok=True)
-    os.makedirs(dir_output_ecc0, exist_ok=True)
+    dir_list = [
+        "mcmc_results/model_ecc0_jitter_00005/",
+        "mcmc_results/model_eccfree_jitter_00005/",
+    ]
 
     default_fontsize = plt.rcParams["font.size"]
     fontsize = 28
@@ -369,12 +369,12 @@ if __name__ == "__main__":
         time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
     )
     error = jitter * random.normal(rng_key_, shape=flux.shape)
-    # error = jitter * random.normal(rng_key_, shape=flux.shape)
     flux = flux + error
-    jnp.save(dir_output_ecc0 + "flux", flux)
-    jnp.save(dir_output + "flux", flux)
 
     #################### eccentricity = 0 fixed ####################
+    dir_output = dir_list[0]
+    os.makedirs(dir_output, exist_ok=True)
+    jnp.save(dir_output + "flux", flux)
 
     # SVI
     rng_key, rng_key_ = random.split(rng_key)
@@ -416,7 +416,7 @@ if __name__ == "__main__":
     )
 
     mcmc.print_summary()
-    with open(dir_output_ecc0 + "mcmc_summary.txt", "w") as f:
+    with open(dir_output + "mcmc_summary.txt", "w") as f:
         # save current stdout
         original_stdout = sys.stdout
         # redirect stdout to a file
@@ -430,7 +430,7 @@ if __name__ == "__main__":
 
     # Get samples
     posterior_sample = mcmc.get_samples()
-    jnp.savez(dir_output_ecc0 + "posterior_sample", **posterior_sample)
+    jnp.savez(dir_output + "posterior_sample", **posterior_sample)
 
     # Prediction
     rng_key, rng_key_ = random.split(rng_key)
@@ -441,7 +441,7 @@ if __name__ == "__main__":
         time=time,
         num_lightcurve=int(jnp.prod(jnp.asarray(flux.shape[:-1]))),
     )
-    jnp.savez(dir_output_ecc0 + "predictions", **predictions)
+    jnp.savez(dir_output + "predictions", **predictions)
 
     # Plot
     input_values_dict = {}
@@ -459,17 +459,20 @@ if __name__ == "__main__":
     input_values_dict["jitter"] = jitter
 
     plot_all(
-        dir_output_ecc0,
+        dir_output,
         input_values_dict,
         num_samples,
-        dir_output_ecc0 + "flux.npy",
-        dir_output_ecc0 + "posterior_sample.npz",
-        dir_output_ecc0 + "predictions.npz",
+        dir_output + "flux.npy",
+        dir_output + "posterior_sample.npz",
+        dir_output + "predictions.npz",
         fit_eccfree=False,
         deltac=False,
     )
 
     #################### eccentricity free ####################
+    dir_output = dir_list[1]
+    os.makedirs(dir_output, exist_ok=True)
+    jnp.save(dir_output + "flux", flux)
 
     # SVI
     rng_key, rng_key_ = random.split(rng_key)
@@ -509,7 +512,7 @@ if __name__ == "__main__":
     kernel = NUTS(
         model,
         forward_mode_differentiation=False,
-        max_tree_depth=12,
+        # max_tree_depth=12,
         init_strategy=init_strategy,
         # target_accept_prob=0.9,
     )
