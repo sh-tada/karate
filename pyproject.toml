@@ -14,5 +14,7 @@ dependencies = [
 dev = [
     "pytest>=6.0.0",
     "matplotlib",
-    "numpyro"
+    "numpyro",
+    "corner",
+    "arviz",
 ]
