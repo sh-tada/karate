@@ -1,6 +1,10 @@
 from wasp39b_params import period_day
 from contact_times_hmc_plot import plot_all
-from calc_light_curve import transit_compute_flux, transit_compute_flux_ecc0
+from calc_light_curve import (
+    transit_compute_flux,
+    transit_compute_flux_ecc0,
+    transit_rp_change_compute_flux,
+)
 
 import os
 import sys
@@ -329,8 +333,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 if __name__ == "__main__":
     dir_list = [
-        "mcmc_results/model_ecc0_jitter_00005/",
-        "mcmc_results/model_eccfree_jitter_00005/",
+        "mcmc_results/rpirpe_model_ecc0_jitter_0/",
+        "mcmc_results/rpirpe_model_eccfree_jitter_0/",
     ]
 
     default_fontsize = plt.rcParams["font.size"]
@@ -349,7 +353,8 @@ if __name__ == "__main__":
 
     wavelength = jnp.linspace(3.0, 5.0, 21)
     time = jnp.linspace(-150, 150, 301) * 65
-    rp_over_rs = 0.150 + 0.005 * jnp.sin(wavelength * jnp.pi)
+    rp_over_rs_ingress = 0.150 * jnp.ones_like(wavelength)
+    rp_over_rs_egress = 0.150 + 0.005 * jnp.sin(wavelength * jnp.pi)
     t0 = 0
     period = period_day * 24 * 60 * 60
     a_over_rs = 11.4
@@ -358,11 +363,21 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 0.0005
-    # jitter = 10**(-10)
+    # jitter = 0.0005
+    jitter = 10 ** (-10)
 
-    flux = transit_compute_flux(
-        time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
+    flux = transit_rp_change_compute_flux(
+        time,
+        rp_over_rs_ingress,
+        rp_over_rs_egress,
+        t0,
+        period,
+        a_over_rs,
+        ecc,
+        omega,
+        cosi,
+        u1,
+        u2,
     )
     error = jitter * random.normal(rng_key_, shape=flux.shape)
     flux = flux + error
@@ -443,7 +458,8 @@ if __name__ == "__main__":
     input_values_dict = {}
     input_values_dict["wavelength"] = wavelength
     input_values_dict["time"] = time
-    input_values_dict["rp_over_rs"] = rp_over_rs
+    input_values_dict["rp_over_rs_ingress"] = rp_over_rs_ingress
+    input_values_dict["rp_over_rs_egress"] = rp_over_rs_egress
     input_values_dict["t0"] = t0
     input_values_dict["period"] = period
     input_values_dict["a_over_rs"] = a_over_rs
@@ -463,6 +479,7 @@ if __name__ == "__main__":
         dir_output + "predictions.npz",
         fit_eccfree=False,
         deltac=False,
+        rp_change=True,
     )
 
     #################### eccentricity free ####################
@@ -552,7 +569,8 @@ if __name__ == "__main__":
     input_values_dict = {}
     input_values_dict["wavelength"] = wavelength
     input_values_dict["time"] = time
-    input_values_dict["rp_over_rs"] = rp_over_rs
+    input_values_dict["rp_over_rs_ingress"] = rp_over_rs_ingress
+    input_values_dict["rp_over_rs_egress"] = rp_over_rs_egress
     input_values_dict["t0"] = t0
     input_values_dict["period"] = period
     input_values_dict["a_over_rs"] = a_over_rs
@@ -572,4 +590,5 @@ if __name__ == "__main__":
         dir_output + "predictions.npz",
         fit_eccfree=True,
         deltac=False,
+        rp_change=True,
     )

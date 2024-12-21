@@ -55,20 +55,17 @@ def cb_to_delta_c_ingress(cb_X_t1, cb_Y_t1, cb_X_t2, cb_Y_t2, k, rs_alpha=1):
     d_Y_n = d_Y / d
     # dcx and dcy are NaN when d < rs_alpha * k
     # Replace NaN with the values for the case d = rs_alpha * k
-    print("The number of NaN (ingress)", jnp.count_nonzero(d - rs_alpha * k < 0))
-    print("The index of NaN (ingress)", jnp.argwhere(d - rs_alpha * k < 0))
-    d = jnp.where(d - rs_alpha * k >= 0, d, rs_alpha * k)
+    print(
+        "The number of NaN (ingress)", jnp.count_nonzero(d - rs_alpha * k < 0, axis=0)
+    )
+    # print("The number of NaN (ingress)", jnp.count_nonzero(d - rs_alpha * k < 0))
+    # print("The index of NaN (ingress)", jnp.argwhere(d - rs_alpha * k < 0))
+    s_X = rs_alpha**2 * k / d
+    s_Y = (rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2)
+    s_Y = jnp.sqrt(jnp.where(s_Y >= 0, s_Y, 0))
 
-    dc_X_ingress = (
-        -m_X
-        + d_X_n * rs_alpha**2 * k / d
-        - d_Y_n * jnp.sqrt((rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2))
-    )
-    dc_Y_ingress = (
-        -m_Y
-        + d_Y_n * rs_alpha**2 * k / d
-        + d_X_n * jnp.sqrt((rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2))
-    )
+    dc_X_ingress = -m_X + d_X_n * s_X - d_Y_n * s_Y
+    dc_Y_ingress = -m_Y + d_Y_n * s_X + d_X_n * s_Y
     # dc_X_ingress = jnp.nan_to_num(dc_X_ingress, nan=-m_X + d_X_n * rs_alpha)
     # dc_Y_ingress = jnp.nan_to_num(dc_Y_ingress, nan=-m_Y + d_Y_n * rs_alpha)
     return dc_X_ingress, dc_Y_ingress
@@ -123,20 +120,15 @@ def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
     d_Y_n = d_Y / d
     # dcx and dcy are NaN when d < rs_alpha * k
     # Replace NaN with the values for the case d = rs_alpha * k
-    print("The number of NaN (egress)", jnp.count_nonzero(d - rs_alpha * k < 0))
-    print("The index of NaN (egress)", jnp.argwhere(d - rs_alpha * k < 0))
-    d = jnp.where(d - rs_alpha * k >= 0, d, rs_alpha * k)
+    print("The number of NaN (egress)", jnp.count_nonzero(d - rs_alpha * k < 0, axis=0))
+    # print("The number of NaN (egress)", jnp.count_nonzero(d - rs_alpha * k < 0))
+    # print("The index of NaN (egress)", jnp.argwhere(d - rs_alpha * k < 0))
+    s_X = rs_alpha**2 * k / d
+    s_Y = (rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2)
+    s_Y = -jnp.sqrt(jnp.where(s_Y >= 0, s_Y, 0))
 
-    dc_X_egress = (
-        -m_X
-        + d_X_n * rs_alpha**2 * k / d
-        + d_Y_n * jnp.sqrt((rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2))
-    )
-    dc_Y_egress = (
-        -m_Y
-        + d_Y_n * rs_alpha**2 * k / d
-        - d_X_n * jnp.sqrt((rs_alpha**2 - d**2) * (1.0 - rs_alpha**2 * (k / d) ** 2))
-    )
+    dc_X_egress = -m_X + d_X_n * s_X - d_Y_n * s_Y
+    dc_Y_egress = -m_Y + d_Y_n * s_X + d_X_n * s_Y
     # dc_X_egress = jnp.nan_to_num(dc_X_egress, nan=-m_X + d_X_n * rs_alpha)
     # dc_Y_egress = jnp.nan_to_num(dc_Y_egress, nan=-m_Y + d_Y_n * rs_alpha)
     return dc_X_egress, dc_Y_egress

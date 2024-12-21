@@ -2,6 +2,9 @@ from wasp39b_params import period_day
 from contact_times_hmc_plot import plot_all
 from calc_light_curve import transit_compute_flux, transit_compute_flux_ecc0
 
+import catwoman
+import numpy as np
+
 import os
 import sys
 import matplotlib.pyplot as plt
@@ -329,8 +332,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 if __name__ == "__main__":
     dir_list = [
-        "mcmc_results/model_ecc0_jitter_00005/",
-        "mcmc_results/model_eccfree_jitter_00005/",
+        "mcmc_results/catwoman_model_ecc0_jitter_0/",
+        "mcmc_results/catwoman_model_eccfree_jitter_0/",
     ]
 
     default_fontsize = plt.rcParams["font.size"]
@@ -347,23 +350,46 @@ if __name__ == "__main__":
     num_warmup = 1000
     num_samples = 1000
 
-    wavelength = jnp.linspace(3.0, 5.0, 21)
-    time = jnp.linspace(-150, 150, 301) * 65
-    rp_over_rs = 0.150 + 0.005 * jnp.sin(wavelength * jnp.pi)
+    wavelength = np.linspace(3.0, 5.0, 21)
+    time = np.linspace(-150, 150, 301) * 65
+    rp_over_rs_evening = 0.150 + 0.005 * np.sin(wavelength * jnp.pi)
+    rp_over_rs_morning = 0.150 + 0.005 * np.sin(wavelength * np.pi * 1.6 + np.pi * 0.5)
     t0 = 0
     period = period_day * 24 * 60 * 60
     a_over_rs = 11.4
     ecc = [[0], [0.1], [0.1]]
-    omega = [[0], [0], [jnp.pi / 2]]
+    omega = [[0], [0], [np.pi / 2]]
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 0.0005
-    # jitter = 10**(-10)
+    # jitter = 0.0005
+    jitter = 10 ** (-10)
 
-    flux = transit_compute_flux(
-        time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
-    )
+    flux = np.zeros((len(ecc), len(rp_over_rs_evening), len(time)))
+    params = catwoman.TransitParams()  # object to store transit parameters
+    params.t0 = t0  # time of inferior conjuction (in days)
+    params.per = period  # orbital period (in days)
+    params.a = a_over_rs  # semi-major axis (in units of stellar radii)
+    params.inc = np.arccos(cosi) / np.pi * 180.0  # orbital inclination (in degrees)
+    params.u = [u1, u2]  # limb darkening coefficients [u1, u2]
+    params.limb_dark = "quadratic"  # limb darkening model
+    params.phi = 90.0  # angle of rotation of top semi-circle
+    for i in range(len(ecc)):
+        params.ecc = np.array(ecc)[i, 0]  # eccentricity
+        params.w = (
+            np.array(omega)[i, 0] / np.pi * 180.0
+        )  # longitude of periastron (in degrees)
+        for j in range(len(rp_over_rs_evening)):
+            params.rp = rp_over_rs_evening[
+                j
+            ]  # top semi-circle radius (in units of stellar radii)
+            params.rp2 = rp_over_rs_morning[
+                j
+            ]  # bottom semi-circle radius (in units of stellar radii)
+
+            model_catwoman = catwoman.TransitModel(params, time)  # initalises model
+            flux[i, j] = model_catwoman.light_curve(params)  # calculates light curve
+
     error = jitter * random.normal(rng_key_, shape=flux.shape)
     flux = flux + error
 
@@ -443,7 +469,8 @@ if __name__ == "__main__":
     input_values_dict = {}
     input_values_dict["wavelength"] = wavelength
     input_values_dict["time"] = time
-    input_values_dict["rp_over_rs"] = rp_over_rs
+    input_values_dict["rp_over_rs_morning"] = rp_over_rs_morning
+    input_values_dict["rp_over_rs_evening"] = rp_over_rs_evening
     input_values_dict["t0"] = t0
     input_values_dict["period"] = period
     input_values_dict["a_over_rs"] = a_over_rs
@@ -463,6 +490,7 @@ if __name__ == "__main__":
         dir_output + "predictions.npz",
         fit_eccfree=False,
         deltac=False,
+        catwoman=True,
     )
 
     #################### eccentricity free ####################
@@ -552,7 +580,8 @@ if __name__ == "__main__":
     input_values_dict = {}
     input_values_dict["wavelength"] = wavelength
     input_values_dict["time"] = time
-    input_values_dict["rp_over_rs"] = rp_over_rs
+    input_values_dict["rp_over_rs_morning"] = rp_over_rs_morning
+    input_values_dict["rp_over_rs_evening"] = rp_over_rs_evening
     input_values_dict["t0"] = t0
     input_values_dict["period"] = period
     input_values_dict["a_over_rs"] = a_over_rs
@@ -572,4 +601,5 @@ if __name__ == "__main__":
         dir_output + "predictions.npz",
         fit_eccfree=True,
         deltac=False,
+        catwoman=True,
     )

@@ -5,7 +5,6 @@ from calc_light_curve import (
     transit_compute_flux_ecc0,
     transit_asymmetric_compute_flux,
 )
-from karate.calc_contact_times import calc_contact_times
 
 import os
 import sys
@@ -207,7 +206,7 @@ def model(flux_obs, time, num_lightcurve):
 
     cosi = b / a_over_rs
     ecc = jnp.sqrt(ecosw**2 + esinw**2)
-    omega = jnp.where(ecc > 0, jnp.arctan2(esinw / ecc, ecosw / ecc), 0.0)
+    omega = jnp.arctan2(esinw, ecosw)
     flux = transit_compute_flux(
         time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
     )
@@ -364,9 +363,6 @@ if __name__ == "__main__":
     u2 = 0.1
     jitter = 1.0 * 10 ** (-10)
     # jitter = 0.0005
-    t1, t2, t3, t4 = calc_contact_times(
-        rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
-    )
 
     dc_over_rs_X_ingress = 0.005 * jnp.cos(wavelength * 1.2 * jnp.pi + 0.5 * jnp.pi)
     dc_over_rs_X_egress = 0.005 * jnp.cos(wavelength * 1.5 * jnp.pi + 0.1 * jnp.pi)
@@ -600,5 +596,5 @@ if __name__ == "__main__":
         dir_output + "posterior_sample.npz",
         dir_output + "predictions.npz",
         fit_eccfree=True,
-        deltac=False,
+        deltac=True,
     )
