@@ -363,8 +363,8 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    # jitter = 0.0005
-    jitter = 10 ** (-10)
+    # jitter = 0.00025
+    jitter = 0
 
     flux = transit_rp_change_compute_flux(
         time,

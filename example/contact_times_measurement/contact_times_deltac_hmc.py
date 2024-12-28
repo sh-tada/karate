@@ -333,8 +333,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 if __name__ == "__main__":
     dir_list = [
-        "mcmc_results/dc_model_ecc0_jitter_0/",
-        "mcmc_results/dc_model_eccfree_jitter_0/",
+        "mcmc_results/dc_model_ecc0_jitter_000025/",
+        "mcmc_results/dc_model_eccfree_jitter_000025/",
     ]
     default_fontsize = plt.rcParams["font.size"]
     fontsize = 28
@@ -361,12 +361,12 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 1.0 * 10 ** (-10)
-    # jitter = 0.0005
+    jitter = 0.00025
+    # jitter = 0
 
     dc_over_rs_X_ingress = 0.005 * jnp.cos(wavelength * 1.2 * jnp.pi + 0.5 * jnp.pi)
     dc_over_rs_X_egress = 0.005 * jnp.cos(wavelength * 1.5 * jnp.pi + 0.1 * jnp.pi)
-    dc_over_rs_Y_ingress = 0.005 * jnp.sin(wavelength * 1.5 * jnp.pi - 0.2 * jnp.pi)
+    dc_over_rs_Y_ingress = 0.005 * jnp.sin(wavelength * 1.6 * jnp.pi - 1.1 * jnp.pi)
     dc_over_rs_Y_egress = 0.005 * jnp.sin(wavelength * 1.2 * jnp.pi + jnp.pi)
 
     flux = transit_asymmetric_compute_flux(
@@ -587,6 +587,10 @@ if __name__ == "__main__":
     input_values_dict["u1"] = u1
     input_values_dict["u2"] = u2
     input_values_dict["jitter"] = jitter
+    input_values_dict["dc_over_rs_X_ingress"] = dc_over_rs_X_ingress
+    input_values_dict["dc_over_rs_Y_ingress"] = dc_over_rs_Y_ingress
+    input_values_dict["dc_over_rs_X_egress"] = dc_over_rs_X_egress
+    input_values_dict["dc_over_rs_Y_egress"] = dc_over_rs_Y_egress
 
     plot_all(
         dir_output,

@@ -56,7 +56,8 @@ def cb_to_delta_c_ingress(cb_X_t1, cb_Y_t1, cb_X_t2, cb_Y_t2, k, rs_alpha=1):
     # dcx and dcy are NaN when d < rs_alpha * k
     # Replace NaN with the values for the case d = rs_alpha * k
     print(
-        "The number of NaN (ingress)", jnp.count_nonzero(d - rs_alpha * k < 0, axis=0)
+        "The number of d < rs_alpha*k (ingress)",
+        jnp.count_nonzero(jnp.atleast_1d(d - rs_alpha * k) < 0, axis=0),
     )
     # print("The number of NaN (ingress)", jnp.count_nonzero(d - rs_alpha * k < 0))
     # print("The index of NaN (ingress)", jnp.argwhere(d - rs_alpha * k < 0))
@@ -120,7 +121,10 @@ def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
     d_Y_n = d_Y / d
     # dcx and dcy are NaN when d < rs_alpha * k
     # Replace NaN with the values for the case d = rs_alpha * k
-    print("The number of NaN (egress)", jnp.count_nonzero(d - rs_alpha * k < 0, axis=0))
+    print(
+        "The number of d < rs_alpha*k (egress)",
+        jnp.count_nonzero(jnp.atleast_1d(d - rs_alpha * k) < 0, axis=0),
+    )
     # print("The number of NaN (egress)", jnp.count_nonzero(d - rs_alpha * k < 0))
     # print("The index of NaN (egress)", jnp.argwhere(d - rs_alpha * k < 0))
     s_X = rs_alpha**2 * k / d

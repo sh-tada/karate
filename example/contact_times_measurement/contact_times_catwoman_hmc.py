@@ -352,7 +352,7 @@ if __name__ == "__main__":
 
     wavelength = np.linspace(3.0, 5.0, 21)
     time = np.linspace(-150, 150, 301) * 65
-    rp_over_rs_evening = 0.150 + 0.005 * np.sin(wavelength * jnp.pi)
+    rp_over_rs_evening = 0.150 + 0.005 * np.sin(wavelength * np.pi)
     rp_over_rs_morning = 0.150 + 0.005 * np.sin(wavelength * np.pi * 1.6 + np.pi * 0.5)
     t0 = 0
     period = period_day * 24 * 60 * 60
@@ -362,8 +362,8 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    # jitter = 0.0005
-    jitter = 10 ** (-10)
+    # jitter = 0.00025
+    jitter = 0
 
     flux = np.zeros((len(ecc), len(rp_over_rs_evening), len(time)))
     params = catwoman.TransitParams()  # object to store transit parameters

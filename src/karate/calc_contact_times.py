@@ -207,6 +207,37 @@ def calc_contact_times_with_deltac(
 
 
 @jit
+def projected_distance_equation(f, rsky_over_rs, a_over_rs, ecc, omega, cosi):
+    # Calculate the 3D distance based on the true anomaly
+    r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
+    # Compute the projected X and Y coordinates in the sky plane
+    x = -r * jnp.cos(omega + f)
+    y = -r * jnp.sin(omega + f) * cosi
+    # Calculate the observed projected distance
+    rsky_tmp = jnp.sqrt(x**2 + y**2)
+    return rsky_tmp - rsky_over_rs
+
+
+@jit
+# Vectorized root-finding
+def solve_for_f(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
+    # Newton's method for root finding
+    func = projected_distance_equation
+    df = jax.grad(projected_distance_equation)
+
+    # Newton's method update step
+    def newton_step(f, _):
+        f_next = f - func(f, rsky_over_rs, a_over_rs, ecc, omega, cosi) / df(
+            f, rsky_over_rs, a_over_rs, ecc, omega, cosi
+        )
+        return f_next, None
+
+    # Use lax.scan for iterative updates
+    f_final, _ = jax.lax.scan(newton_step, f_init, None, length=20)
+    return f_final
+
+
+@jit
 def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
     """
     Calculate the true anomaly (f) from the rsky_over_rs.
@@ -227,36 +258,6 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
         rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi
     )
 
-    def projected_distance_equation(f, rsky_over_rs, a_over_rs, ecc, omega, cosi):
-        # Calculate the 3D distance based on the true anomaly
-        r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
-        # Compute the projected X and Y coordinates in the sky plane
-        x = -r * jnp.cos(omega + f)
-        y = -r * jnp.sin(omega + f) * cosi
-        # Calculate the observed projected distance
-        rsky_tmp = jnp.sqrt(x**2 + y**2)
-        return rsky_tmp - rsky_over_rs
-
-    # Vectorized root-finding
-    def solve_for_f(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
-        # Newton's method for root finding
-        def newton_method(f):
-            def func(f):
-                return projected_distance_equation(
-                    f, rsky_over_rs, a_over_rs, ecc, omega, cosi
-                )
-
-            def df(f):
-                return jax.grad(func)(f)
-
-            return f - func(f) / df(f)
-
-        # Iterate with an initial guess
-        f = f_init  # Initial estimate (choose the first value)
-        for _ in range(20):  # Iterate until convergence
-            f = newton_method(f)
-        return f
-
     # Dynamically apply vmap based on input dimensions
     func = solve_for_f
     input_ndim = rsky_over_rs.ndim
@@ -265,6 +266,42 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
     # Process vector inputs
     f = func(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi)
     return f
+
+
+@jit
+def projected_distance_equation_deltac(
+    f, rsky_over_rs, dc_over_rs_x, dc_over_rs_y, a_over_rs, ecc, omega, cosi
+):
+    # Calculate the 3D distance based on the true anomaly
+    r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
+    # Compute the projected X and Y coordinates in the sky plane
+    x = -r * jnp.cos(omega + f) + dc_over_rs_x
+    y = -r * jnp.sin(omega + f) * cosi + dc_over_rs_y
+    # Calculate the observed projected distance
+    rsky_tmp = jnp.sqrt(x**2 + y**2)
+    return rsky_tmp - rsky_over_rs
+
+
+@jit
+# Vectorized root-finding
+def solve_for_f_deltac(
+    rsky_over_rs, dc_over_rs_x, dc_over_rs_y, f_init, a_over_rs, ecc, omega, cosi
+):
+    # Newton's method for root finding
+    func = projected_distance_equation_deltac
+    df = jax.grad(projected_distance_equation_deltac)
+
+    # Newton's method update step
+    def newton_step(f, _):
+        f_next = f - func(
+            f, rsky_over_rs, dc_over_rs_x, dc_over_rs_y, a_over_rs, ecc, omega, cosi
+        ) / df(f, rsky_over_rs, dc_over_rs_x, dc_over_rs_y, a_over_rs, ecc, omega, cosi)
+        return f_next, None
+
+    # Use lax.scan for iterative updates
+    f_final, _ = jax.lax.scan(newton_step, f_init, None, length=20)
+
+    return f_final
 
 
 @jit
@@ -299,49 +336,8 @@ def calc_true_anomaly_rsky_with_deltac(
         )
     )
 
-    def projected_distance_equation(
-        f, rsky_over_rs, dc_over_rs_x, dc_over_rs_y, a_over_rs, ecc, omega, cosi
-    ):
-        # Calculate the 3D distance based on the true anomaly
-        r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
-        # Compute the projected X and Y coordinates in the sky plane
-        x = -r * jnp.cos(omega + f) + dc_over_rs_x
-        y = -r * jnp.sin(omega + f) * cosi + dc_over_rs_y
-        # Calculate the observed projected distance
-        rsky_tmp = jnp.sqrt(x**2 + y**2)
-        return rsky_tmp - rsky_over_rs
-
-    # Vectorized root-finding
-    def solve_for_f(
-        rsky_over_rs, dc_over_rs_x, dc_over_rs_y, f_init, a_over_rs, ecc, omega, cosi
-    ):
-        # Newton's method for root finding
-        def newton_method(f):
-            def func(f):
-                return projected_distance_equation(
-                    f,
-                    rsky_over_rs,
-                    dc_over_rs_x,
-                    dc_over_rs_y,
-                    a_over_rs,
-                    ecc,
-                    omega,
-                    cosi,
-                )
-
-            def df(f):
-                return jax.grad(func)(f)
-
-            return f - func(f) / df(f)
-
-        # Iterate with an initial guess
-        f = f_init  # Initial estimate (choose the first value)
-        for _ in range(20):  # Iterate until convergence
-            f = newton_method(f)
-        return f
-
     # Dynamically apply vmap based on input dimensions
-    func = solve_for_f
+    func = solve_for_f_deltac
     input_ndim = rsky_over_rs.ndim
     for _ in range(input_ndim):
         func = jax.vmap(func)

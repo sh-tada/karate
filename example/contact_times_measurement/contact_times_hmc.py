@@ -26,16 +26,25 @@ def model_ecc0(flux_obs, time, num_lightcurve):
     with numpyro.plate("n_light_curve", num_lightcurve, dim=-1):
         period = period_day * 24 * 60 * 60
         t0 = numpyro.sample("t0", dist.Uniform(-5000, 5000))
+        depth = numpyro.sample("depth", dist.Uniform(0, 0.1))
         Ttot = numpyro.sample("Ttot", dist.Uniform(5000, 15000))
-        Tfull = numpyro.sample("Tfull", dist.Uniform(1000, Ttot))
+
+        # Tfull = numpyro.sample("Tfull", dist.Uniform(1000, Ttot))
+        # theta_tot = 2 * jnp.pi * Ttot / period
+        # theta_full = 2 * jnp.pi * Tfull / period
+        # depth_max = (
+        #     (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
+        #     / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
+        # ) ** 2
+        # depth = numpyro.sample("depth", dist.Uniform(0, depth_max))
 
         theta_tot = 2 * jnp.pi * Ttot / period
+        theta_full_max = 2 * jnp.arcsin(
+            (1 - jnp.sqrt(depth)) / (1 + jnp.sqrt(depth)) * jnp.sin(theta_tot / 2)
+        )
+        Tfull_max = theta_full_max / 2 / jnp.pi * period
+        Tfull = numpyro.sample("Tfull", dist.Uniform(1, Tfull_max))
         theta_full = 2 * jnp.pi * Tfull / period
-        depth_max = (
-            (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
-            / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
-        ) ** 2
-        depth = numpyro.sample("depth", dist.Uniform(0, depth_max))
 
         u1 = numpyro.sample("u1", dist.Uniform(-3, 3))
         u2 = numpyro.sample("u2", dist.Uniform(-3, 3))
@@ -86,6 +95,26 @@ def guide_ecc0(flux_obs, time, num_lightcurve):
             "t0", dist.TruncatedNormal(loc_t0, scale_t0, low=-5000, high=5000)
         )
 
+        loc_depth = numpyro.param(
+            "loc_depth",
+            0.02 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        scale_depth = numpyro.param(
+            "scale_depth",
+            0.0001 * jnp.ones(num_lightcurve),
+            constraint=constraints.positive,
+        )
+        depth = numpyro.sample(
+            "depth",
+            dist.TruncatedNormal(
+                loc_depth,
+                scale_depth,
+                low=0.01,
+                high=0.1,
+            ),
+        )
+
         loc_Ttot = numpyro.param(
             "loc_Ttot",
             10000.0 * jnp.ones(num_lightcurve),
@@ -100,6 +129,12 @@ def guide_ecc0(flux_obs, time, num_lightcurve):
             "Ttot", dist.TruncatedNormal(loc_Ttot, scale_Ttot, low=9000, high=13000)
         )
 
+        theta_tot = 2 * jnp.pi * Ttot / period
+        theta_full_max = 2 * jnp.arcsin(
+            (1 - jnp.sqrt(depth)) / (1 + jnp.sqrt(depth)) * jnp.sin(theta_tot / 2)
+        )
+        Tfull_max = theta_full_max / 2 / jnp.pi * period
+
         loc_Tfull = numpyro.param(
             "loc_Tfull",
             7000.0 * jnp.ones(num_lightcurve),
@@ -113,34 +148,10 @@ def guide_ecc0(flux_obs, time, num_lightcurve):
         Tfull = numpyro.sample(
             "Tfull",
             dist.TruncatedNormal(
-                loc_Tfull, scale_Tfull, low=6000 * jnp.ones(num_lightcurve), high=Ttot
-            ),
-        )
-
-        theta_tot = 2 * jnp.pi * Ttot / period
-        theta_full = 2 * jnp.pi * Tfull / period
-        depth_max = (
-            (jnp.sin(theta_tot / 2) - jnp.sin(theta_full / 2))
-            / (jnp.sin(theta_tot / 2) + jnp.sin(theta_full / 2))
-        ) ** 2
-
-        loc_depth = numpyro.param(
-            "loc_depth",
-            0.02 * jnp.ones(num_lightcurve),
-            constraint=constraints.positive,
-        )
-        scale_depth = numpyro.param(
-            "scale_depth",
-            0.0001 * jnp.ones(num_lightcurve),
-            constraint=constraints.positive,
-        )
-        numpyro.sample(
-            "depth",
-            dist.TruncatedNormal(
-                loc_depth,
-                scale_depth,
-                low=0.01 * jnp.ones(num_lightcurve),
-                high=depth_max,
+                loc_Tfull,
+                scale_Tfull,
+                low=6000 * jnp.ones(num_lightcurve),
+                high=Tfull_max,
             ),
         )
 
@@ -329,8 +340,8 @@ def guide(flux_obs, time, num_lightcurve):
 
 if __name__ == "__main__":
     dir_list = [
-        "mcmc_results/model_ecc0_jitter_00005/",
-        "mcmc_results/model_eccfree_jitter_00005/",
+        "mcmc_results/model_ecc0_jitter_000025/",
+        "mcmc_results/model_eccfree_jitter_000025/",
     ]
 
     default_fontsize = plt.rcParams["font.size"]
@@ -358,8 +369,8 @@ if __name__ == "__main__":
     cosi = 0.45 / a_over_rs
     u1 = 0.1
     u2 = 0.1
-    jitter = 0.0005
-    # jitter = 10**(-10)
+    jitter = 0.00025
+    # jitter = 0
 
     flux = transit_compute_flux(
         time, rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
@@ -465,6 +476,7 @@ if __name__ == "__main__":
         deltac=False,
     )
 
+    """
     #################### eccentricity free ####################
     dir_output = dir_list[1]
     os.makedirs(dir_output, exist_ok=True)
@@ -573,3 +585,4 @@ if __name__ == "__main__":
         fit_eccfree=True,
         deltac=False,
     )
+    """
