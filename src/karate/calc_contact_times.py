@@ -28,8 +28,8 @@ def calc_contact_times_circular(rp_over_rs, period, a_over_rs, cosi, t0):
     Returns
     -------
     tuple
-        The times corresponding to the beginning and end of the ingress and
-        egress phases of the planetary transit.
+        A tuple containing the contact times: the beginning and end of the
+        ingress and egress phases of the planetary transit.
     """
     inputs = [rp_over_rs, period, a_over_rs, cosi, t0]
     rp_over_rs, period, a_over_rs, cosi, t0 = [jnp.asarray(inp) for inp in inputs]
@@ -84,8 +84,8 @@ def calc_contact_times(rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0):
     Returns
     -------
     tuple
-        The times corresponding to the beginning and end of the ingress and
-        egress phases of the planetary transit.
+        A tuple containing the contact times: the beginning and end of the
+        ingress and egress phases of the planetary transit.
     """
     inputs = [rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0]
     rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0 = [
@@ -155,18 +155,21 @@ def calc_contact_times_with_deltac(
     rp_over_rs, dc_over_rs_x, dc_over_rs_y, period, a_over_rs, ecc, omega, cosi, t0
 ):
     """
-    Calculate the contact times for an eccentric orbit with an offset in the
-    sky plane, based on the planet's radius and orbital parameters, as well as
-    sky displacement.
+    Calculate the contact times for an eccentric orbit with a displacement of
+    the planetary shadow, based on the planet's radius and orbital parameters.
+
+    This function computes the contact times (the beginning and end of the
+    ingress and egress phases) of the planetary transit, considering the
+    displacement of the planetary shadow in the sky plane.
 
     Parameters
     ----------
     rp_over_rs : float or array-like
         Planetary radius normalized by the stellar radius.
     dc_over_rs_x : float or array-like
-        Offset in the x-direction (sky plane) normalized by the stellar radius.
+        Displacement in the x-direction normalized by the stellar radius.
     dc_over_rs_y : float or array-like
-        Offset in the y-direction (sky plane) normalized by the stellar radius.
+        Displacement in the y-direction normalized by the stellar radius.
     period : float or array-like
         Orbital period of the planet.
     a_over_rs : float or array-like
@@ -176,15 +179,16 @@ def calc_contact_times_with_deltac(
     omega : float or array-like
         Argument of periastron in radians.
     cosi : float or array-like
-        Cosine of the orbital inclination.
+        Cosine of the orbital inclination angle.
     t0 : float or array-like
         Time of inferior conjunction.
 
     Returns
     -------
     tuple
-        The times corresponding to the beginning and end of the ingress and
-        egress phases of the planetary transit, considering sky offsets.
+        A tuple containing the contact times: the beginning and end of the
+        ingress and egress phases of the planetary transit, considering the
+        displacement of the planetary shadow.
     """
     inputs = [rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0]
     rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0 = [
@@ -286,32 +290,6 @@ def calc_contact_times_with_deltac(
 
 
 def projected_distance_equation(f, rsky_over_rs, a_over_rs, ecc, omega, cosi):
-    """
-    Calculate the projected distance between the planet and the star in the
-    sky plane as a function of true anomaly.
-
-    Parameters
-    ----------
-    f : array
-        True anomaly of the planet in radians.
-    rsky_over_rs : array
-        Projected distance between the planet and the host star, normalized
-        by the stellar radius.
-    a_over_rs : array
-        Semi-major axis normalized by the stellar radius.
-    ecc : array
-        Orbital eccentricity.
-    omega : array
-        Argument of periastron in radians.
-    cosi : array
-        Cosine of the orbital inclination.
-
-    Returns
-    -------
-    array
-        Difference between the observed projected distance and the expected
-        value.
-    """
     # Calculate the 3D distance based on the true anomaly
     r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
     # Compute the projected X and Y coordinates in the sky plane
@@ -324,31 +302,6 @@ def projected_distance_equation(f, rsky_over_rs, a_over_rs, ecc, omega, cosi):
 
 # Vectorized root-finding
 def solve_for_f(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
-    """
-    Solve for the true anomaly given the projected distance in the sky plane
-    using Newton's method.
-
-    Parameters
-    ----------
-    rsky_over_rs : array
-        Projected distance between the planet and the host star, normalized by
-        the stellar radius.
-    f_init : array
-        Initial guess for the true anomaly in radians.
-    a_over_rs : array
-        Semi-major axis normalized by the stellar radius.
-    ecc : array
-        Orbital eccentricity.
-    omega : array
-        Argument of periastron in radians.
-    cosi : array
-        Cosine of the orbital inclination.
-
-    Returns
-    -------
-    array
-        The true anomaly in radians that corresponds to the projected distance.
-    """
     # Newton's method for root finding
     func = projected_distance_equation
     df = jax.grad(projected_distance_equation)
@@ -388,7 +341,7 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
     Returns
     -------
     array
-        True anomaly (f) in radians.
+        The true anomaly in radians that corresponds to the given rsky_over_rs.
     """
     rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi = expand_arrays(
         rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi
@@ -407,36 +360,6 @@ def calc_true_anomaly_rsky(rsky_over_rs, f_init, a_over_rs, ecc, omega, cosi):
 def projected_distance_equation_deltac(
     f, rsky_over_rs, dc_over_rs_x, dc_over_rs_y, a_over_rs, ecc, omega, cosi
 ):
-    """
-    Calculate the projected distance between the planet and the star in the
-    sky plane, accounting for sky plane offsets (dc_over_rs_x, dc_over_rs_y).
-
-    Parameters
-    ----------
-    f : array
-        True anomaly of the planet in radians.
-    rsky_over_rs : array
-        Projected distance between the planet and the host star, normalized by
-        the stellar radius.
-    dc_over_rs_x : array
-        Offset in the x-direction (sky plane) normalized by the stellar radius.
-    dc_over_rs_y : array
-        Offset in the y-direction (sky plane) normalized by the stellar radius.
-    a_over_rs : array
-        Semi-major axis normalized by the stellar radius.
-    ecc : array
-        Orbital eccentricity.
-    omega : array
-        Argument of periastron in radians.
-    cosi : array
-        Cosine of the orbital inclination.
-
-    Returns
-    -------
-    array
-        Difference between the observed projected distance and the expected
-        value, considering offsets.
-    """
     # Calculate the 3D distance based on the true anomaly
     r = a_over_rs * (1.0 - ecc**2) / (1.0 + ecc * jnp.cos(f))
     # Compute the projected X and Y coordinates in the sky plane
@@ -451,36 +374,6 @@ def projected_distance_equation_deltac(
 def solve_for_f_deltac(
     rsky_over_rs, dc_over_rs_x, dc_over_rs_y, f_init, a_over_rs, ecc, omega, cosi
 ):
-    """
-    Solve for the true anomaly given the projected distance in the sky plane,
-    accounting for offsets in the sky plane, using Newton's method.
-
-    Parameters
-    ----------
-    rsky_over_rs : array
-        Projected distance between the planet and the host star, normalized by
-        the stellar radius.
-    dc_over_rs_x : array
-        Offset in the x-direction (sky plane) normalized by the stellar radius.
-    dc_over_rs_y : array
-        Offset in the y-direction (sky plane) normalized by the stellar radius.
-    f_init : array
-        Initial guess for the true anomaly in radians.
-    a_over_rs : array
-        Semi-major axis normalized by the stellar radius.
-    ecc : array
-        Orbital eccentricity.
-    omega : array
-        Argument of periastron in radians.
-    cosi : array
-        Cosine of the orbital inclination.
-
-    Returns
-    -------
-    array
-        The true anomaly in radians that corresponds to the projected distance,
-        considering offsets.
-    """
     # Newton's method for root finding
     func = projected_distance_equation_deltac
     df = jax.grad(projected_distance_equation_deltac)
@@ -503,17 +396,17 @@ def calc_true_anomaly_rsky_with_deltac(
 ):
     """
     Calculate the true anomaly from the projected distance in the sky plane,
-    accounting for offsets in the sky plane.
+    accounting for the displacement of the planetary shadow.
 
     Parameters
     ----------
     rsky_over_rs : array
         Projected distance between the planet and the host star, normalized by
         the stellar radius.
-    dc_over_rs_x : array
-        Offset in the x-direction (sky plane) normalized by the stellar radius.
-    dc_over_rs_y : array
-        Offset in the y-direction (sky plane) normalized by the stellar radius.
+    dc_over_rs_x : float or array-like
+        Displacement in the x-direction normalized by the stellar radius.
+    dc_over_rs_y : float or array-like
+        Displacement in the y-direction normalized by the stellar radius.
     f_init : array
         Initial guess for the true anomaly in radians.
     a_over_rs : array
@@ -528,7 +421,8 @@ def calc_true_anomaly_rsky_with_deltac(
     Returns
     -------
     array
-        True anomaly (f) in radians, considering offsets in the sky plane.
+        The true anomaly in radians that corresponds to the given rsky_over_rs,
+        considering the displacement of the planetary shadow.
     """
     rsky_over_rs, dc_over_rs_x, dc_over_rs_y, f_init, a_over_rs, ecc, omega, cosi = (
         expand_arrays(
