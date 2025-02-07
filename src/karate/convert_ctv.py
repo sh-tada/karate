@@ -10,9 +10,9 @@ def cb_to_delta_c_ingress(cb_X_t1, cb_Y_t1, cb_X_t2, cb_Y_t2, k, rs_alpha=1):
     """
     Calculate the center shift of the planetary shadow at ingress.
 
-    This function computes the shift of the planetary shadow's center
+    This function computes the displacement of the planetary shadow's center
     during the ingress phase, based on the center of mass coordinates
-    at two different contact times (t1 and t2). The shift depends on the
+    at two different contact times (t1 and t2). The displacement depends on the
     ratio of planetary to stellar radius and the relative stellar radius
     at a given wavelength.
 
@@ -39,10 +39,10 @@ def cb_to_delta_c_ingress(cb_X_t1, cb_Y_t1, cb_X_t2, cb_Y_t2, k, rs_alpha=1):
     Returns
     -------
     dc_X : float or array-like
-        X-coordinate of the center shift
+        X-coordinate of the center displacement
         (in units of stellar radii at the reference wavelength).
     dc_Y : float or array-like
-        Y-coordinate of the center shift
+        Y-coordinate of the center displacement
         (in units of stellar radii at the reference wavelength).
     """
 
@@ -75,11 +75,11 @@ def cb_to_delta_c_ingress(cb_X_t1, cb_Y_t1, cb_X_t2, cb_Y_t2, k, rs_alpha=1):
 # @jit
 def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
     """
-    Calculate the center shift of the planetary shadow at egress.
+    Calculate the center displacement of the planetary shadow at egress.
 
-    This function computes the shift of the planetary shadow's center
+    This function computes the displacement of the planetary shadow's center
     during the egress phase, based on the center of mass coordinates at
-    two different contact times (t3 and t4). The shift depends on the
+    two different contact times (t3 and t4). The displacement depends on the
     ratio of planetary to stellar radius and the relative stellar radius
     at a given wavelength.
 
@@ -106,10 +106,10 @@ def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
     Returns
     -------
     dc_X : float or array-like
-        X-coordinate of the center shift
+        X-coordinate of the center displacement
         (in units of stellar radii at the reference wavelength).
     dc_Y : float or array-like
-        Y-coordinate of the center shift
+        Y-coordinate of the center displacement
         (in units of stellar radii at the reference wavelength).
     """
     m_X = (cb_X_t4 + cb_X_t3) / 2
@@ -142,7 +142,41 @@ def cb_to_delta_c_egress(cb_X_t3, cb_Y_t3, cb_X_t4, cb_Y_t4, k, rs_alpha=1):
 def contact_times_to_delta_c_ingress(
     k_lambda, t1_lambda, t2_lambda, period, a_over_rs, ecc, omega, cosi, t0, rs_alpha=1
 ):
-    """ """
+    """
+    Calculate the center displacement at ingress by computing the coordinates
+    at two different contact times and applying the ingress center displacement.
+
+    Parameters
+    ----------
+    k_lambda : float or array-like
+        Ratio of planetary radius to stellar radius at the given wavelength.
+    t1_lambda : float or array-like
+        Contact time t1 at the given wavelength.
+    t2_lambda : float or array-like
+        Contact time t2 at the given wavelength.
+    period : float or array-like
+        Orbital period of the planet.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    ecc : float or array-like
+        Orbital eccentricity.
+    omega : float or array-like
+        Argument of periastron in radians.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+    t0 : float or array-like
+        Time of inferior conjunction.
+    rs_alpha : float or array-like, optional
+        Ratio of stellar radius at the given wavelength to the reference
+        wavelength (default is 1).
+
+    Returns
+    -------
+    dc_X_ingress : float or array-like
+        X-coordinate of the center displacement at ingress.
+    dc_Y_ingress : float or array-like
+        Y-coordinate of the center displacement at ingress.
+    """
     cb_X_t1, cb_Y_t1 = orbital_elements_to_coordinates(
         t1_lambda, period, a_over_rs, ecc, omega, cosi, t0
     )
@@ -159,7 +193,41 @@ def contact_times_to_delta_c_ingress(
 def contact_times_to_delta_c_egress(
     k_lambda, t3_lambda, t4_lambda, period, a_over_rs, ecc, omega, cosi, t0, rs_alpha=1
 ):
-    """ """
+    """
+    Calculate the center displacement at egress by computing the coordinates
+    at two different contact times and applying the egress center displacement.
+
+    Parameters
+    ----------
+    k_lambda : float or array-like
+        Ratio of planetary radius to stellar radius at the given wavelength.
+    t3_lambda : float or array-like
+        Contact time t3 at the given wavelength.
+    t4_lambda : float or array-like
+        Contact time t4 at the given wavelength.
+    period : float or array-like
+        Orbital period of the planet.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    ecc : float or array-like
+        Orbital eccentricity.
+    omega : float or array-like
+        Argument of periastron in radians.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+    t0 : float or array-like
+        Time of inferior conjunction.
+    rs_alpha : float or array-like, optional
+        Ratio of stellar radius at the given wavelength to the reference
+        wavelength (default is 1).
+
+    Returns
+    -------
+    dc_X_egress : float or array-like
+        X-coordinate of the center displacement at egress.
+    dc_Y_egress : float or array-like
+        Y-coordinate of the center displacement at egress.
+    """
     cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates(
         t3_lambda, period, a_over_rs, ecc, omega, cosi, t0
     )
@@ -174,7 +242,34 @@ def contact_times_to_delta_c_egress(
 
 @jit
 def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, cosi):
-    """ """
+    """
+    Rotate the center displacement at ingress based on orbital parameters.
+
+    This function applies the rotation of the center displacement for the
+    ingress phase to account for the orbital geometry.
+
+    Parameters
+    ----------
+    dc_X_ingress : float or array-like
+        X-coordinate of the center displacement at ingress.
+    dc_Y_ingress : float or array-like
+        Y-coordinate of the center displacement at ingress.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    ecc : float or array-like
+        Orbital eccentricity.
+    omega : float or array-like
+        Argument of periastron in radians.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+
+    Returns
+    -------
+    dc_xi_ingress : float or array-like
+        xi-coordinate of the center displacement at ingress.
+    dc_yi_ingress : float or array-like
+        yi-coordinate of the center displacement at ingress.
+    """
     f_init = (
         jnp.pi / 2.0
         - omega
@@ -193,7 +288,34 @@ def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, co
 
 @jit
 def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi):
-    """ """
+    """
+    Rotate the center displacement at egress based on orbital parameters.
+
+    This function applies the rotation of the center displacement for the
+    egress phase to account for the orbital geometry.
+
+    Parameters
+    ----------
+    dc_X_egress : float or array-like
+        X-coordinate of the center displacement at egress.
+    dc_Y_egress : float or array-like
+        Y-coordinate of the center displacement at egress.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    ecc : float or array-like
+        Orbital eccentricity.
+    omega : float or array-like
+        Argument of periastron in radians.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+
+    Returns
+    -------
+    dc_xe_egress : float or array-like
+        xe-coordinate of the center displacement at egress.
+    dc_ye_egress : float or array-like
+        ye-coordinate of the center displacement at egress.
+    """
     f_init = (
         jnp.pi / 2.0
         - omega
@@ -214,7 +336,38 @@ def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi)
 def contact_times_to_delta_c_ingress_circular(
     k_lambda, t1_lambda, t2_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
-    """ """
+    """
+    Calculate the center displacement at ingress for a circular orbit by
+    computing the coordinates at two different contact times and applying the
+    ingress center displacement.
+
+    Parameters
+    ----------
+    k_lambda : float or array-like
+        Ratio of planetary radius to stellar radius at the given wavelength.
+    t1_lambda : float or array-like
+        Contact time t1 at the given wavelength.
+    t2_lambda : float or array-like
+        Contact time t2 at the given wavelength.
+    period : float or array-like
+        Orbital period of the planet.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+    t0 : float or array-like
+        Time of inferior conjunction.
+    rs_alpha : float or array-like, optional
+        Ratio of stellar radius at the given wavelength to the reference
+        wavelength (default is 1).
+
+    Returns
+    -------
+    dc_X_ingress : float or array-like
+        X-coordinate of the center displacement at ingress.
+    dc_Y_ingress : float or array-like
+        Y-coordinate of the center displacement at ingress.
+    """
     cb_X_t1, cb_Y_t1 = orbital_elements_to_coordinates_circular(
         t1_lambda, period, a_over_rs, cosi, t0
     )
@@ -231,7 +384,38 @@ def contact_times_to_delta_c_ingress_circular(
 def contact_times_to_delta_c_egress_circular(
     k_lambda, t3_lambda, t4_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
-    """ """
+    """
+    Calculate the center displacement at egress for a circular orbit by
+    computing the coordinates at two different contact times and applying the
+    egress center displacement.
+
+    Parameters
+    ----------
+    k_lambda : float or array-like
+        Ratio of planetary radius to stellar radius at the given wavelength.
+    t3_lambda : float or array-like
+        Contact time t3 at the given wavelength.
+    t4_lambda : float or array-like
+        Contact time t4 at the given wavelength.
+    period : float or array-like
+        Orbital period of the planet.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+    t0 : float or array-like
+        Time of inferior conjunction.
+    rs_alpha : float or array-like, optional
+        Ratio of stellar radius at the given wavelength to the reference
+        wavelength (default is 1).
+
+    Returns
+    -------
+    dc_X_egress : float or array-like
+        X-coordinate of the center displacement at egress.
+    dc_Y_egress : float or array-like
+        Y-coordinate of the center displacement at egress.
+    """
     cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates(
         t3_lambda, period, a_over_rs, cosi, t0
     )
@@ -246,7 +430,31 @@ def contact_times_to_delta_c_egress_circular(
 
 @jit
 def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi):
-    """ """
+    """
+    Rotate the center displacement at ingress for a circular orbit based on
+    orbital parameters.
+
+    This function applies the rotation of the center displacement for the
+    ingress phase to account for the orbital geometry.
+
+    Parameters
+    ----------
+    dc_X_ingress : float or array-like
+        X-coordinate of the center displacement at ingress.
+    dc_Y_ingress : float or array-like
+        Y-coordinate of the center displacement at ingress.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+
+    Returns
+    -------
+    dc_xi_ingress : float or array-like
+        xi-coordinate of the center displacement at ingress.
+    dc_yi_ingress : float or array-like
+        yi-coordinate of the center shift at ingress.
+    """
     f_ib = jnp.pi / 2.0 - jnp.arcsin(
         jnp.sqrt((1.0 - (a_over_rs * cosi) ** 2)) / jnp.sqrt(1.0 - cosi**2) / a_over_rs
     )
@@ -259,7 +467,31 @@ def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi)
 
 @jit
 def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
-    """ """
+    """
+    Rotate the center displacement at egress for a circular orbit based on
+    orbital parameters.
+
+    This function applies the rotation of the center displacement for the
+    egress phase to account for the orbital geometry.
+
+    Parameters
+    ----------
+    dc_X_egress : float or array-like
+        X-coordinate of the center displacement at egress.
+    dc_Y_egress : float or array-like
+        Y-coordinate of the center displacement at egress.
+    a_over_rs : float or array-like
+        Semi-major axis normalized by stellar radius.
+    cosi : float or array-like
+        Cosine of the orbital inclination.
+
+    Returns
+    -------
+    dc_xe_egress : float or array-like
+        xe-coordinate of the center displacement at egress.
+    dc_ye_egress : float or array-like
+        ye-coordinate of the center displacement at egress.
+    """
     f_eb = jnp.pi / 2 + jnp.arcsin(
         jnp.sqrt((1.0 - (a_over_rs * cosi) ** 2)) / jnp.sqrt(1.0 - cosi**2) / a_over_rs
     )
@@ -272,7 +504,27 @@ def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
 
 @jit
 def dcx_to_rp_spectra(k, dc_x, rs_alpha=1):
-    """ """
+    """
+    Convert the center displacement in the x-direction to the planetary radius
+    at a given wavelength.
+
+    Parameters
+    ----------
+    k : float or array-like
+        Ratio of planetary radius to stellar radius at a given wavelength.
+    dc_x : float or array-like
+        Center displacement in the x-direction (in units of stellar radii).
+    rs_alpha : float or array-like, optional
+        Ratio of stellar radius at the given wavelength to the reference
+        wavelength (default is 1).
+
+    Returns
+    -------
+    rp_jnp : float or array-like
+        Planetary radius at the given wavelength.
+    rp_xn : float or array-like
+        Negative planetary radius at the given wavelength.
+    """
     rp_jnp = rs_alpha * k + dc_x
     rp_xn = rs_alpha * k - dc_x
     return rp_jnp, rp_xn

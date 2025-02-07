@@ -1,11 +1,23 @@
 import jax.numpy as jnp
-from jax import jit
 from jaxoplanet.core.kepler import kepler
 
 
-@jit
 def true_anomaly_to_eccentric_anomaly(f, ecc):
-    """ """
+    """
+    Convert true anomaly (f) to eccentric anomaly (u) using Kepler's equation.
+
+    Parameters
+    ----------
+    f : float or array-like
+        True anomaly in radians.
+    ecc : float or array-like
+        Orbital eccentricity.
+
+    Returns
+    -------
+    u : float or array-like
+        Eccentric anomaly in radians.
+    """
     # make f from -pi to pi
     n = jnp.floor((f + jnp.pi) / (2 * jnp.pi))
     f_norm = (f + jnp.pi) % (2 * jnp.pi) - jnp.pi
@@ -16,9 +28,22 @@ def true_anomaly_to_eccentric_anomaly(f, ecc):
     return jnp.where((f % jnp.pi) == 0, f, u)
 
 
-@jit
 def eccentric_anomaly_to_true_anomaly(u, ecc):
-    """ """
+    """
+    Convert eccentric anomaly (u) to true anomaly (f) using Kepler's equation.
+
+    Parameters
+    ----------
+    u : float or array-like
+        Eccentric anomaly in radians.
+    ecc : float or array-like
+        Orbital eccentricity.
+
+    Returns
+    -------
+    f : float or array-like
+        True anomaly in radians.
+    """
     # make u from -pi to pi
     n = jnp.floor((u + jnp.pi) / (2 * jnp.pi))
     u_norm = (u + jnp.pi) % (2 * jnp.pi) - jnp.pi
@@ -29,36 +54,89 @@ def eccentric_anomaly_to_true_anomaly(u, ecc):
     return jnp.where((u % jnp.pi) == 0, u, f)
 
 
-@jit
 def eccentric_anomaly_to_t_from_tperi(u, ecc, period):
-    """ """
+    """
+    Convert eccentric anomaly (u) to time (t) from periastron (t_periastron)
+    based on orbital parameters.
+
+    Parameters
+    ----------
+    u : float or array-like
+        Eccentric anomaly in radians.
+    ecc : float or array-like
+        Orbital eccentricity.
+    period : float or array-like
+        Orbital period of the planet.
+
+    Returns
+    -------
+    t : float or array-like
+        Time (t) at which the planet is at the given eccentric anomaly.
+    """
     return period / (2.0 * jnp.pi) * (u - ecc * jnp.sin(u))
 
 
-@jit
 def tperi_to_t0(t_periastron, period, ecc, omega):
-    """ """
+    """
+    Calculate the time of conjunction (t0) from the time of periastron
+    (t_periastron).
+
+    Parameters
+    ----------
+    t_periastron : float
+        Time of periastron passage.
+    period : float
+        Orbital period of the planet.
+    ecc : float
+        Orbital eccentricity.
+    omega : float
+        Argument of periastron in radians.
+
+    Returns
+    -------
+    t0 : float
+        Time of conjunction (when the planet passes closest to the star's
+        center).
+    """
     u_t0 = true_anomaly_to_eccentric_anomaly(jnp.pi / 2.0 - omega, ecc)
     t0_from_tperi = eccentric_anomaly_to_t_from_tperi(u_t0, ecc, period)
     return t0_from_tperi + t_periastron
 
 
-@jit
 def t0_to_tperi(t0, period, ecc, omega):
-    """ """
+    """
+    Calculate the time of periastron (t_periastron) from the time of
+    conjunction (t0).
+
+    Parameters
+    ----------
+    t0 : float
+        Time of conjunction (when the planet passes closest to the star's
+        center).
+    period : float
+        Orbital period of the planet.
+    ecc : float
+        Orbital eccentricity.
+    omega : float
+        Argument of periastron in radians.
+
+    Returns
+    -------
+    t_periastron : float
+        Time of periastron passage.
+    """
     u_t0 = true_anomaly_to_eccentric_anomaly(jnp.pi / 2.0 - omega, ecc)
     t0_from_tperi = eccentric_anomaly_to_t_from_tperi(u_t0, ecc, period)
     return t0 - t0_from_tperi
 
 
-@jit
 def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     """
-    Compute the x and y coordinates of a planet in a circular orbit.
+    Compute the x and y coordinates of a planet in a circular orbit at a given
+    time.
 
-    This function calculates the position of a planet in a circular
-    orbit at a given time `t`. The orbit is described by the orbital
-    period, semi-major axis, and inclination.
+    This function calculates the position of a planet in a circular orbit
+    at time `t` based on orbital parameters.
 
     Parameters
     ----------
@@ -67,11 +145,12 @@ def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     period : float
         Orbital period of the planet.
     a_over_rs : float
-        Semi-major axis divided by stellar radius.
+        Semi-major axis normalized by the stellar radius.
     cosi : float
         Cosine of the orbital inclination angle.
     t0 : float
-        Time of conjunction (when the planet passes closest to the star's center).
+        Time of conjunction (when the planet passes closest to the star's
+        center).
 
     Returns
     -------
@@ -99,14 +178,14 @@ def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     return x, y
 
 
-@jit
 def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
     """
-    Compute the x and y coordinates of a planet in a circular orbit.
+    Compute the x and y coordinates of a planet in an eccentric orbit at a
+    given time.
 
-    This function calculates the position of a planet in a circular
-    orbit at a given time `t`. The orbit is described by the orbital
-    period, semi-major axis, and inclination.
+    This function calculates the position of a planet in an eccentric orbit
+    at time `t` based on orbital parameters including eccentricity and argument
+    of periastron.
 
     Parameters
     ----------
@@ -115,11 +194,16 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
     period : float or array-like
         Orbital period of the planet.
     a_over_rs : float or array-like
-        Semi-major axis divided by stellar radius.
+        Semi-major axis normalized by the stellar radius.
+    ecc : float or array-like
+        Orbital eccentricity.
+    omega : float or array-like
+        Argument of periastron in radians.
     cosi : float or array-like
         Cosine of the orbital inclination angle.
     t0 : float or array-like
-        Time of conjunction (when the planet passes closest to the star's center).
+        Time of conjunction (when the planet passes closest to the star's
+        center).
 
     Returns
     -------
@@ -152,6 +236,27 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
 
 
 def get_ta(t, period, ecc, tperi):
-    """ """
+    """
+    Calculate the mean anomaly (M) and use it to solve Kepler's equation for
+    the true anomaly (f).
+
+    Parameters
+    ----------
+    t : float or array-like
+        Time(s) at which to calculate the true anomaly.
+    period : float
+        Orbital period of the planet.
+    ecc : float
+        Orbital eccentricity.
+    tperi : float
+        Time of periastron passage.
+
+    Returns
+    -------
+    sinf : float or array-like
+        Sine of the true anomaly.
+    cosf : float or array-like
+        Cosine of the true anomaly.
+    """
     M = 2 * jnp.pi * (t - tperi) / period
     return kepler(M, ecc)
