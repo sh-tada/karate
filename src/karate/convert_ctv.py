@@ -144,7 +144,7 @@ def contact_times_to_delta_c_ingress(
 ):
     """
     Calculate the center displacement at ingress by computing the coordinates
-    at two different contact times and applying the ingress center displacement.
+    at two different contact times.
 
     Parameters
     ----------
@@ -195,7 +195,7 @@ def contact_times_to_delta_c_egress(
 ):
     """
     Calculate the center displacement at egress by computing the coordinates
-    at two different contact times and applying the egress center displacement.
+    at two different contact times.
 
     Parameters
     ----------
@@ -243,10 +243,10 @@ def contact_times_to_delta_c_egress(
 @jit
 def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, cosi):
     """
-    Rotate the center displacement at ingress based on orbital parameters.
+    Rotate the center displacement at ingress to obtain xi- and yi-coordinates.
 
     This function applies the rotation of the center displacement for the
-    ingress phase to account for the orbital geometry.
+    ingress phase to obtain xi- and yi-coordinates.
 
     Parameters
     ----------
@@ -289,10 +289,10 @@ def rotate_delta_c_ingress(dc_X_ingress, dc_Y_ingress, a_over_rs, ecc, omega, co
 @jit
 def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi):
     """
-    Rotate the center displacement at egress based on orbital parameters.
+    Rotate the center displacement at egress to obtain xe- and ye-coordinates.
 
     This function applies the rotation of the center displacement for the
-    egress phase to account for the orbital geometry.
+    egress phase to obtain xe- and ye-coordinates.
 
     Parameters
     ----------
@@ -338,8 +338,7 @@ def contact_times_to_delta_c_ingress_circular(
 ):
     """
     Calculate the center displacement at ingress for a circular orbit by
-    computing the coordinates at two different contact times and applying the
-    ingress center displacement.
+    computing the coordinates at two different contact times.
 
     Parameters
     ----------
@@ -386,8 +385,7 @@ def contact_times_to_delta_c_egress_circular(
 ):
     """
     Calculate the center displacement at egress for a circular orbit by
-    computing the coordinates at two different contact times and applying the
-    egress center displacement.
+    computing the coordinates at two different contact times.
 
     Parameters
     ----------
@@ -432,10 +430,10 @@ def contact_times_to_delta_c_egress_circular(
 def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi):
     """
     Rotate the center displacement at ingress for a circular orbit based on
-    orbital parameters.
+    orbital parameters to obtain xi- and yi-coordinates..
 
     This function applies the rotation of the center displacement for the
-    ingress phase to account for the orbital geometry.
+    ingress phase to obtain xi- and yi-coordinates.
 
     Parameters
     ----------
@@ -453,7 +451,7 @@ def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi)
     dc_xi_ingress : float or array-like
         xi-coordinate of the center displacement at ingress.
     dc_yi_ingress : float or array-like
-        yi-coordinate of the center shift at ingress.
+        yi-coordinate of the center displacement at ingress.
     """
     f_ib = jnp.pi / 2.0 - jnp.arcsin(
         jnp.sqrt((1.0 - (a_over_rs * cosi) ** 2)) / jnp.sqrt(1.0 - cosi**2) / a_over_rs
@@ -469,10 +467,10 @@ def rotate_delta_c_ingress_circular(dc_X_ingress, dc_Y_ingress, a_over_rs, cosi)
 def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
     """
     Rotate the center displacement at egress for a circular orbit based on
-    orbital parameters.
+    orbital parameters to obtain xe- and ye-coordinates.
 
     This function applies the rotation of the center displacement for the
-    egress phase to account for the orbital geometry.
+    egress phase to obtain xe- and ye-coordinates.
 
     Parameters
     ----------
@@ -505,13 +503,19 @@ def rotate_delta_c_egress_circular(dc_X_egress, dc_Y_egress, a_over_rs, cosi):
 @jit
 def dcx_to_rp_spectra(k, dc_x, rs_alpha=1):
     """
-    Convert the center displacement in the x-direction to the planetary radius
-    at a given wavelength.
+    Convert the center displacement in the x-direction to the projected
+    planetary radii in the positive and negative x directions at a given
+    wavelength.
+
+    This function calculates the projected planetary radius in the positive
+    (xp) and negative (xn) x directions at a given wavelength, based on the
+    center displacement in the x-direction and the ratio of planetary radius
+    to stellar radius.
 
     Parameters
     ----------
     k : float or array-like
-        Ratio of planetary radius to stellar radius at a given wavelength.
+        Ratio of planetary radius to stellar radius at the given wavelength.
     dc_x : float or array-like
         Center displacement in the x-direction (in units of stellar radii).
     rs_alpha : float or array-like, optional
@@ -520,11 +524,13 @@ def dcx_to_rp_spectra(k, dc_x, rs_alpha=1):
 
     Returns
     -------
-    rp_jnp : float or array-like
-        Planetary radius at the given wavelength.
+    rp_xp : float or array-like
+        Projected planetary radius in the positive x-direction (xp) at the
+        given wavelength.
     rp_xn : float or array-like
-        Negative planetary radius at the given wavelength.
+        Projected planetary radius in the negative x-direction (xn) at the
+        given wavelength.
     """
-    rp_jnp = rs_alpha * k + dc_x
+    rp_xp = rs_alpha * k + dc_x
     rp_xn = rs_alpha * k - dc_x
-    return rp_jnp, rp_xn
+    return rp_xp, rp_xn

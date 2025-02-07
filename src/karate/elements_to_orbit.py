@@ -78,7 +78,7 @@ def eccentric_anomaly_to_t_from_tperi(u, ecc, period):
 
 def tperi_to_t0(t_periastron, period, ecc, omega):
     """
-    Calculate the time of conjunction (t0) from the time of periastron
+    Calculate the time of inferior conjunction (t0) from the time of periastron
     (t_periastron).
 
     Parameters
@@ -95,8 +95,7 @@ def tperi_to_t0(t_periastron, period, ecc, omega):
     Returns
     -------
     t0 : float
-        Time of conjunction (when the planet passes closest to the star's
-        center).
+        Time of inferior conjunction.
     """
     u_t0 = true_anomaly_to_eccentric_anomaly(jnp.pi / 2.0 - omega, ecc)
     t0_from_tperi = eccentric_anomaly_to_t_from_tperi(u_t0, ecc, period)
@@ -106,13 +105,12 @@ def tperi_to_t0(t_periastron, period, ecc, omega):
 def t0_to_tperi(t0, period, ecc, omega):
     """
     Calculate the time of periastron (t_periastron) from the time of
-    conjunction (t0).
+    inferior conjunction (t0).
 
     Parameters
     ----------
     t0 : float
-        Time of conjunction (when the planet passes closest to the star's
-        center).
+        Time of inferior conjunction.
     period : float
         Orbital period of the planet.
     ecc : float
@@ -149,8 +147,7 @@ def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     cosi : float
         Cosine of the orbital inclination angle.
     t0 : float
-        Time of conjunction (when the planet passes closest to the star's
-        center).
+        Time of inferior conjunction.
 
     Returns
     -------
@@ -202,8 +199,7 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
     cosi : float or array-like
         Cosine of the orbital inclination angle.
     t0 : float or array-like
-        Time of conjunction (when the planet passes closest to the star's
-        center).
+        Time of inferior conjunction.
 
     Returns
     -------
