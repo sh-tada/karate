@@ -26,6 +26,13 @@ def transit_compute_flux(
     rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2 = expand_arrays(
         rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2
     )
+    processed_inputs = []
+    for arr in (rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2):
+        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
+            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
+        processed_inputs.append(arr)
+    rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2 = processed_inputs
+
     supersample_num = int(supersample_factor // 2 * 2 + 1)
     exposure_time = jnp.median(jnp.diff(time))
     dtarr = jnp.linspace(-0.5 * exposure_time, 0.5 * exposure_time, supersample_num)
@@ -74,6 +81,13 @@ def transit_asymmetric_compute_flux(
         rp_over_rs, period, a_over_rs, ecc, omega, cosi, t0
     )
 
+    processed_inputs = []
+    for arr in (rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2):
+        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
+            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
+        processed_inputs.append(arr)
+    rp_over_rs, t0, period, a_over_rs, ecc, omega, cosi, u1, u2 = processed_inputs
+
     supersample_num = int(supersample_factor // 2 * 2 + 1)
     exposure_time = jnp.median(jnp.diff(time))
     dtarr = jnp.linspace(-0.5 * exposure_time, 0.5 * exposure_time, supersample_num)
@@ -115,84 +129,6 @@ def transit_asymmetric_compute_flux(
 
 
 @jit
-def transit_rp_change_compute_flux(
-    time,  # (M)
-    rp_over_rs_ingress,  # (N)
-    rp_over_rs_egress,  # (N)
-    t0,
-    period,
-    a_over_rs,
-    ecc,
-    omega,
-    cosi,
-    u1,
-    u2,
-    supersample_factor=10,
-):
-    """ """
-    (
-        rp_over_rs_ingress,
-        rp_over_rs_egress,
-        t0,
-        period,
-        a_over_rs,
-        ecc,
-        omega,
-        cosi,
-        u1,
-        u2,
-    ) = expand_arrays(
-        rp_over_rs_ingress,
-        rp_over_rs_egress,
-        t0,
-        period,
-        a_over_rs,
-        ecc,
-        omega,
-        cosi,
-        u1,
-        u2,
-    )
-    t1, t2, _, _ = calc_contact_times(
-        rp_over_rs_ingress, period, a_over_rs, ecc, omega, cosi, t0
-    )
-    _, _, t3, t4 = calc_contact_times(
-        rp_over_rs_egress, period, a_over_rs, ecc, omega, cosi, t0
-    )
-
-    supersample_num = int(supersample_factor // 2 * 2 + 1)
-    exposure_time = jnp.median(jnp.diff(time))
-    dtarr = jnp.linspace(-0.5 * exposure_time, 0.5 * exposure_time, supersample_num)
-    t_super = (time[:, None] + dtarr).ravel()
-
-    # Linear change of Delta c from t2 to t3
-    t_center = (t3[..., None] + t2[..., None]) / 2.0
-    duration = t3[..., None] - t2[..., None]
-    ie_ratio = jnp.clip((t_super - t_center) / duration, -0.5, 0.5)
-    i_ratio = -ie_ratio + 0.5
-    e_ratio = ie_ratio + 0.5
-    rp_over_rs = (
-        rp_over_rs_ingress[..., None] * i_ratio + rp_over_rs_egress[..., None] * e_ratio
-    )
-
-    rsky_over_rs_x, rsky_over_rs_y = orbital_elements_to_coordinates(
-        t_super, period, a_over_rs, ecc, omega, cosi, t0
-    )
-    rsky_over_rs = jnp.sqrt(rsky_over_rs_x**2 + rsky_over_rs_y**2)
-
-    flux_super = flux_from_rsky_over_rs_rp_change(rsky_over_rs, rp_over_rs, u1, u2)
-    flux = jnp.mean(
-        flux_super.reshape(
-            *flux_super.shape[:-1],
-            flux_super.shape[-1] // supersample_num,
-            supersample_num,
-        ),
-        axis=-1,
-    )
-    return flux
-
-
-@jit
 def transit_compute_flux_ecc0(
     time,
     rp_over_rs,
@@ -208,6 +144,12 @@ def transit_compute_flux_ecc0(
     rp_over_rs, t0, period, a_over_rs, cosi, u1, u2 = expand_arrays(
         rp_over_rs, t0, period, a_over_rs, cosi, u1, u2
     )
+    processed_inputs = []
+    for arr in (rp_over_rs, t0, period, a_over_rs, cosi, u1, u2):
+        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
+            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
+        processed_inputs.append(arr)
+    rp_over_rs, t0, period, a_over_rs, cosi, u1, u2 = processed_inputs
 
     supersample_num = int(supersample_factor // 2 * 2 + 1)
     exposure_time = jnp.median(jnp.diff(time))
@@ -233,20 +175,6 @@ def transit_compute_flux_ecc0(
 
 @jit
 def flux_from_rsky_over_rs(rsky_over_rs, rp_over_rs, u1, u2):
-    inputs = [rp_over_rs, u1, u2]
-    arrays = [jnp.asarray(inp) for inp in inputs]
-    # Process each input: add a new axis if it is an array
-    processed_inputs = []
-    max_shape = jnp.asarray(1)
-    for arr in arrays:
-        max_shape = max_shape * jnp.ones_like(arr)
-    for arr in arrays:
-        arr = arr * max_shape  # Convert to jax.numpy array
-        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
-            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
-        processed_inputs.append(arr)
-    rp_over_rs, u1, u2 = processed_inputs
-
     rsky_over_rs, rp_over_rs, u1, u2 = expand_arrays(rsky_over_rs, rp_over_rs, u1, u2)
     u = jnp.stack((u1, u2), axis=-1)
 
@@ -261,20 +189,6 @@ def flux_from_rsky_over_rs(rsky_over_rs, rp_over_rs, u1, u2):
 
 @jit
 def flux_from_rsky_over_rs_rp_change(rsky_over_rs, rp_over_rs, u1, u2):
-    inputs = [u1, u2]
-    arrays = [jnp.asarray(inp) for inp in inputs]
-    # Process each input: add a new axis if it is an array
-    processed_inputs = []
-    max_shape = jnp.asarray(1)
-    for arr in arrays:
-        max_shape = max_shape * jnp.ones_like(arr)
-    for arr in arrays:
-        arr = arr * max_shape  # Convert to jax.numpy array
-        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
-            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
-        processed_inputs.append(arr)
-    u1, u2 = processed_inputs
-
     rsky_over_rs, rp_over_rs, u1, u2 = expand_arrays(rsky_over_rs, rp_over_rs, u1, u2)
     u = jnp.stack((u1, u2), axis=-1)
 

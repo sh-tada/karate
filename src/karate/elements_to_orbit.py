@@ -156,20 +156,6 @@ def orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0):
     y : float or array-like
         Y-coordinate(s) of the planet's position (in units of stellar radii).
     """
-    inputs = [period, a_over_rs, cosi, t0]
-    arrays = [jnp.asarray(inp) for inp in inputs]
-    # Process each input: add a new axis if it is an array
-    processed_inputs = []
-    max_shape = jnp.asarray(1)
-    for arr in arrays:
-        max_shape = max_shape * jnp.ones_like(arr)
-    for arr in arrays:
-        arr = arr * max_shape  # Convert to jax.numpy array
-        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
-            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
-        processed_inputs.append(arr)
-    period, a_over_rs, cosi, t0 = processed_inputs
-
     x = a_over_rs * jnp.sin(2.0 * jnp.pi * (t - t0) / period)
     y = -a_over_rs * jnp.cos(2.0 * jnp.pi * (t - t0) / period) * cosi
     return x, y
@@ -208,20 +194,6 @@ def orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0):
     y : float or array-like (*shape(params), len(t))
         Y-coordinate(s) of the planet's position (in units of stellar radii).
     """
-    inputs = [period, a_over_rs, ecc, omega, cosi, t0]
-    arrays = [jnp.asarray(inp) for inp in inputs]
-    # Process each input: add a new axis if it is an array
-    processed_inputs = []
-    max_shape = jnp.asarray(1)
-    for arr in arrays:
-        max_shape = max_shape * jnp.ones_like(arr)
-    for arr in arrays:
-        arr = arr * max_shape  # Convert to jax.numpy array
-        if arr.ndim > 0 and arr.shape[-1] > 1:  # Check if it is an array (not a scalar)
-            arr = jnp.expand_dims(arr, axis=-1)  # Add a new axis
-        processed_inputs.append(arr)
-    period, a_over_rs, ecc, omega, cosi, t0 = processed_inputs
-
     tperi = t0_to_tperi(t0, period, ecc, omega)
     sinf, cosf = get_ta(t, period, ecc, tperi)
     r = a_over_rs * (1.0 - ecc**2) / (1 + ecc * cosf)

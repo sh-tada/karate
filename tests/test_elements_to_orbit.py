@@ -150,7 +150,9 @@ def test_orbital_elements_to_coordinates_circular():
     a_over_rs = jnp.array([10.0, 20.0])
     cosi = jnp.array([0.0, 0.01])
     t0 = jnp.array([0.0, 1.0])
-    x, y = orbital_elements_to_coordinates_circular(t, period, a_over_rs, cosi, t0)
+    x, y = orbital_elements_to_coordinates_circular(
+        t, period[:, None], a_over_rs[:, None], cosi[:, None], t0[:, None]
+    )
 
     expected_x = a_over_rs[:, None] * jnp.sin(
         2.0 * jnp.pi * (t - t0[:, None]) / period[:, None]
@@ -204,11 +206,27 @@ def test_orbital_elements_to_coordinates():
     cosi = jnp.array([0.0, 0.01])
     t0 = jnp.array([0.0, 1.0])
 
-    x, y = orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0)
+    x, y = orbital_elements_to_coordinates(
+        t,
+        period[:, None],
+        a_over_rs[:, None],
+        ecc[:, None],
+        omega[:, None],
+        cosi[:, None],
+        t0[:, None],
+    )
 
     t = jnp.array([0.0, 2.5, 5.0, 7.5, 10.0]) + 1.0
     t0 = jnp.array([0.0, 1.0]) + 1.0
-    x2, y2 = orbital_elements_to_coordinates(t, period, a_over_rs, ecc, omega, cosi, t0)
+    x2, y2 = orbital_elements_to_coordinates(
+        t,
+        period[:, None],
+        a_over_rs[:, None],
+        ecc[:, None],
+        omega[:, None],
+        cosi[:, None],
+        t0[:, None],
+    )
 
     assert jnp.allclose(x, x2, atol=1e-8)
     assert jnp.allclose(y, y2, atol=1e-8)

@@ -17,4 +17,5 @@ dev = [
     "numpyro",
     "corner",
     "arviz",
+    "jupyter",
 ]

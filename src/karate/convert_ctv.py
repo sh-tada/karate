@@ -332,7 +332,7 @@ def rotate_delta_c_egress(dc_X_egress, dc_Y_egress, a_over_rs, ecc, omega, cosi)
     return dc_xe_egress, dc_ye_egress
 
 
-@jit
+# @jit
 def contact_times_to_delta_c_ingress_circular(
     k_lambda, t1_lambda, t2_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
@@ -379,7 +379,7 @@ def contact_times_to_delta_c_ingress_circular(
     return dc_X_ingress, dc_Y_ingress
 
 
-@jit
+# @jit
 def contact_times_to_delta_c_egress_circular(
     k_lambda, t3_lambda, t4_lambda, period, a_over_rs, cosi, t0, rs_alpha=1
 ):
@@ -414,10 +414,10 @@ def contact_times_to_delta_c_egress_circular(
     dc_Y_egress : float or array-like
         Y-coordinate of the center displacement at egress.
     """
-    cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates(
+    cb_X_t3, cb_Y_t3 = orbital_elements_to_coordinates_circular(
         t3_lambda, period, a_over_rs, cosi, t0
     )
-    cb_X_t4, cb_Y_t4 = orbital_elements_to_coordinates(
+    cb_X_t4, cb_Y_t4 = orbital_elements_to_coordinates_circular(
         t4_lambda, period, a_over_rs, cosi, t0
     )
     dc_X_egress, dc_Y_egress = cb_to_delta_c_egress(
