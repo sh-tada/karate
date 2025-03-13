@@ -3,7 +3,7 @@
 
 A tool for analyzing chromatic transit variations (CTV) to explore the atmospheric asymmetry of transiting exoplanets.
 
-To learn more about usage, check the Jupyter notebooks in the `examples` directory or refer to [this paper](http://arxiv.org/abs/2503.08988).
+To learn more about usage, check the example notebooks in the `examples` directory or refer to [this paper](http://arxiv.org/abs/2503.08988).
 
 
 
