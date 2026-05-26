@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+message: "If you use karate in your research, please cite the paper listed in preferred-citation. Please also consider citing the ASCL entry: ascl:2604.008."
+
+title: "karate"
+type: software
+
+authors:
+  - family-names: "Tada"
+    given-names: "Shotaro"
+
+repository-code: "https://github.com/sh-tada/karate"
+url: "https://ascl.net/2604.008"
+
+preferred-citation:
+  type: article
+  title: "Probing Two-dimensional Asymmetries of an Exoplanet Atmosphere from Chromatic Transit Variation"
+  authors:
+    - family-names: "Tada"
+      given-names: "Shotaro"
+    - family-names: "Kawahara"
+      given-names: "Hajime"
+    - family-names: "Kawashima"
+      given-names: "Yui"
+    - family-names: "Kotani"
+      given-names: "Takayuki"
+    - family-names: "Masuda"
+      given-names: "Kento"
+  journal: "The Astronomical Journal"
+  volume: 169
+  issue: 5
+  start: 255
+  year: 2025
+  doi: "10.3847/1538-3881/adbe65"
