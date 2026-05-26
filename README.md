@@ -14,3 +14,7 @@ To learn more about usage, check the example notebooks in the `examples` directo
 ```sh
 pip install git+https://github.com/sh-tada/karate.git
 ```
+
+## License
+
+This software is released under the MIT License. See the LICENSE file for details.
